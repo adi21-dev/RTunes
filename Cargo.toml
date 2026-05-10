@@ -1,0 +1,62 @@
+[package]
+name = "rtunes"
+version = "0.1.0"
+edition = "2021"
+# Docs target Rust 1.95+; MSRV 1.94 for current stable toolchains.
+rust-version = "1.94"
+description = "Terminal-based music player with visualizers"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+ratatui = "0.29"
+crossterm = "0.28"
+rodio = { version = "0.19", features = ["symphonia-all"] }
+rustfft = "6.2"
+lofty = "0.22"
+crossbeam-queue = "0.3"
+crossbeam-channel = "0.5"
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+serde_yaml = "0.9"
+dirs = "5"
+shellexpand = "3"
+dunce = "1"
+url = "2"
+sha2 = "0.10"
+hex = "0.4"
+tracing = "0.1"
+tracing-appender = "0.2"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+anyhow = "1"
+thiserror = "1"
+noise = "0.9"
+rfd = "0.15"
+
+[dev-dependencies]
+serde_yaml = "0.9"
+
+[lib]
+name = "rtunes"
+path = "src/lib.rs"
+
+[[test]]
+name = "fetcher_tui"
+path = "tests/integration/fetcher_tui.rs"
+
+[[test]]
+name = "scan_perf"
+path = "tests/integration/scan_perf.rs"
+
+[[test]]
+name = "headless_tui"
+path = "tests/integration/headless_tui.rs"
+
+[[test]]
+name = "event_dispatch"
+path = "tests/integration/event_dispatch.rs"
+
+[profile.release]
+strip = true
+opt-level = 3
+lto = true
+codegen-units = 1

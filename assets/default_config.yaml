@@ -1,0 +1,48 @@
+# RTunes default configuration — copied on first run if config.yaml is missing.
+# Default location: config.yaml in the same folder as the rtunes executable.
+# Override with RTUNES_CONFIG_PATH or `rtunes --config <PATH> ...`.
+
+app:
+  library_paths:
+    - "~/Music"
+  download_dir: "~/Music"
+  fps: 60
+  default_visualizer: "spectrum"
+  start_fullscreen: false
+  log_level: "warn"
+  volume: 0.7
+  repeat: "off"
+  shuffle: false
+  neon: true
+  spectrogram_mode: "standard"
+
+theme:
+  active: "synthwave"
+  # Optional: define extra themes under `custom` (name -> full Theme fields).
+  # custom:
+  #   my_theme:
+  #     name: "my_theme"
+  #     background: "#000000"
+  #     ...
+
+fetcher:
+  ytdlp_path: "auto"
+  ffmpeg_path: "auto"
+  default_format: "mp3"
+  max_concurrent: 3
+
+audio:
+  fft_window_size: 4096
+  fft_hop_size: 2048
+  fft_rate_hz: 30
+  ring_buffer_size: 16384
+  # PCM samples forwarded to oscilloscope/vectorscope per frame (~23 ms at 44.1 kHz).
+  pcm_snapshot_samples: 1024
+  # Spectrogram waterfall history depth in rows (fewer = less memory + faster render).
+  spectrogram_history_rows: 64
+
+visualizer:
+  # Particle physics sub-steps per frame. 1 = fast, 2 = smoother (original) behavior.
+  particles_substeps: 1
+  # Maximum live particles. Lower = less CPU on particle renderer.
+  particles_max: 250

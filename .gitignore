@@ -1,0 +1,12 @@
+/target/
+*.log
+*.log.*
+config.yaml
+
+# Bundled binaries (not in git); keep folder via .gitkeep
+/deps/*
+!/deps/.gitkeep
+
+.DS_Store
+Thumbs.db
+*.swp
