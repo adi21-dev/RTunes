@@ -87,12 +87,19 @@ fn fft_loop(
     // 3-slot object pool — zero-alloc VisualizerData delivery to TUI.
     // With channel capacity 2 and pool size 3, at least one slot always has refcount 1
     // (not held by channel or TUI renderer), so Arc::get_mut always succeeds in steady state.
+    // One shared spectrogram deque: all pool slots point to the same Arc<Mutex<…>>
+    // so every FFT frame accumulates into a single history visible to every pool slot.
+    // Previously each slot had its own VecDeque, causing only 1/3 of frames to appear.
+    let shared_rows: Arc<Mutex<VecDeque<Vec<f32>>>> =
+        Arc::new(Mutex::new(VecDeque::with_capacity(spec_rows_cap)));
+
     let mut pool: Vec<Arc<VisualizerData>> = (0..3)
         .map(|_| {
             let mut d = VisualizerData::empty(NUM_VIS_BINS);
             // Pre-allocate PCM vectors so first-fill never triggers a heap allocation.
             d.pcm_mono = Vec::with_capacity(pcm_snapshot);
             d.pcm_stereo = Vec::with_capacity(pcm_snapshot);
+            d.spectrogram_rows = Arc::clone(&shared_rows);
             Arc::new(d)
         })
         .collect();
@@ -141,6 +148,10 @@ fn fft_loop(
         fft_core.process(&mut mono_window, &mut bins_raw);
         // Zero-alloc spectral smoothing — reuses pre-allocated scratch buffer.
         apply_spectral_smoothing_with_scratch(&mut bins_raw, &mut spectral_scratch);
+        debug_assert!(
+            bins_raw.iter().all(|&v| v >= 0.0 && v <= 1.0),
+            "bins_raw out of [0, 1]"
+        );
 
         let dt = frame_period.as_secs_f32();
         let peak_decay = (-dt * K_PEAK_DECAY).exp();
@@ -209,12 +220,11 @@ fn fft_loop(
                 viz.pcm_mono.push((p.0 + p.1) * 0.5);
             }
 
-            // Spectrogram waterfall: recycle rows from the back into row_pool.
-            // Arc::get_mut succeeds because only this VisualizerData holds spectrogram_rows
-            // (the outer Arc is exclusively ours right now).
+            // Spectrogram waterfall: push new row into the shared deque, recycle old rows.
+            // All pool slots point to the same Arc<Mutex<…>> so every renderer sees the
+            // full unbroken history rather than one slot's 1/3 of frames.
             {
-                let rows = Arc::get_mut(&mut viz.spectrogram_rows)
-                    .expect("spectrogram_rows exclusive");
+                let mut rows = shared_rows.lock().expect("spectrogram mutex");
                 while rows.len() >= spec_rows_cap {
                     if let Some(old) = rows.pop_back() {
                         row_pool.push_back(old);

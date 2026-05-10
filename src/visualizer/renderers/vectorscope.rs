@@ -135,8 +135,6 @@ impl crate::visualizer::Visualizer for Vectorscope {
         let trail = dim_with_intensity(parse_hex(&theme.viz.wave_trail), bg, vi);
         let wf = w as f64;
         let hf = h as f64;
-        let theme_owned = theme.clone();
-
         // Reuse member buffers (clear preserves capacity — no heap alloc in steady state).
         self.primary.clear();
         self.trail_pts.clear();
@@ -178,7 +176,7 @@ impl crate::visualizer::Visualizer for Vectorscope {
                         [0.0, wf],
                         [0.0, hf],
                         &primary,
-                        &theme_owned,
+                        bg,
                         wave,
                         true,
                     );
@@ -190,6 +188,13 @@ impl crate::visualizer::Visualizer for Vectorscope {
             area,
         );
         crate::visualizer::maybe_draw_viz_baseline(f, area, rctx);
+    }
+    fn reset(&mut self) {
+        // Zero all phosphor persistence cells so the old figure doesn't linger.
+        self.phosphor.scale_all(0.0);
+        self.spline.clear();
+        self.amp_peak = 0.5;
+        self.pen_thick_until = None;
     }
 }
 

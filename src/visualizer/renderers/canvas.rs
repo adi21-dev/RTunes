@@ -3,8 +3,7 @@
 use ratatui::style::Color;
 use ratatui::widgets::canvas::{Context, Points};
 
-use crate::config::Theme;
-use crate::tui::color::{gradient_at, lerp_color, parse_hex};
+use crate::tui::color::{gradient_at, lerp_color};
 
 /// Map `t ∈ [0,1]` across theme gradient stops.
 pub fn gradient_color(stops: &[String], t: f32) -> Color {
@@ -71,14 +70,13 @@ pub fn glow_pass(
     x_bounds: [f64; 2],
     y_bounds: [f64; 2],
     primary_pts: &[(f64, f64)],
-    theme: &Theme,
+    bg: Color,
     primary: Color,
     glow_enabled: bool,
 ) {
     if !glow_enabled || primary_pts.is_empty() {
         return;
     }
-    let bg = parse_hex(&theme.background);
     let res_x = f64::from(width) * 2.0;
     let res_y = f64::from(height) * 4.0;
     let xspan = (x_bounds[1] - x_bounds[0]).abs();
@@ -111,6 +109,12 @@ pub fn glow_pass(
     // Ring 3 (radius 3.5): 4 cardinal directions, dim far halo.
     let c3 = lerp_color(primary, bg, 0.85);
 
+    // Clamp outer ring radius so it doesn't exceed 25% of canvas span on tiny areas.
+    let r2_x = (dx * 2.0).min(xspan * 0.25);
+    let r2_y = (dy * 2.0).min(yspan * 0.25);
+    let r3_x = (dx * 3.5).min(xspan * 0.25);
+    let r3_y = (dy * 3.5).min(yspan * 0.25);
+
     let n = primary_pts.len();
     let mut ring1: Vec<(f64, f64)> = Vec::with_capacity(n * 8);
     let mut ring2: Vec<(f64, f64)> = Vec::with_capacity(n * 8);
@@ -127,19 +131,19 @@ pub fn glow_pass(
         ring1.push((x - dx * 0.707, y + dy * 0.707));
         ring1.push((x + dx * 0.707, y + dy * 0.707));
         // Ring 2 — radius 2, 8 directions.
-        ring2.push((x - dx * 2.0,   y         ));
-        ring2.push((x + dx * 2.0,   y         ));
-        ring2.push((x,              y - dy * 2.0));
-        ring2.push((x,              y + dy * 2.0));
-        ring2.push((x - dx * 1.414, y - dy * 1.414));
-        ring2.push((x + dx * 1.414, y - dy * 1.414));
-        ring2.push((x - dx * 1.414, y + dy * 1.414));
-        ring2.push((x + dx * 1.414, y + dy * 1.414));
+        ring2.push((x - r2_x,          y           ));
+        ring2.push((x + r2_x,          y           ));
+        ring2.push((x,                 y - r2_y    ));
+        ring2.push((x,                 y + r2_y    ));
+        ring2.push((x - r2_x * 0.707,  y - r2_y * 0.707));
+        ring2.push((x + r2_x * 0.707,  y - r2_y * 0.707));
+        ring2.push((x - r2_x * 0.707,  y + r2_y * 0.707));
+        ring2.push((x + r2_x * 0.707,  y + r2_y * 0.707));
         // Ring 3 — radius 3.5, 4 cardinal directions.
-        ring3.push((x - dx * 3.5,   y         ));
-        ring3.push((x + dx * 3.5,   y         ));
-        ring3.push((x,              y - dy * 3.5));
-        ring3.push((x,              y + dy * 3.5));
+        ring3.push((x - r3_x,   y       ));
+        ring3.push((x + r3_x,   y       ));
+        ring3.push((x,          y - r3_y));
+        ring3.push((x,          y + r3_y));
     }
 
     ctx.draw(&Points { coords: &ring1, color: c1 });

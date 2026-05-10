@@ -72,12 +72,19 @@ pub struct GradientLut {
 
 impl GradientLut {
     /// Build a 256-entry LUT from gradient stop strings.
+    /// Invalid hex stops produce `Color::Reset` from `gradient_at`; those entries
+    /// are substituted with a neutral mid-gray so the LUT is always well-defined.
     pub fn new(stops: &[String]) -> Self {
         const N: usize = 256;
         let mut entries = Vec::with_capacity(N);
         for i in 0..N {
             let t = i as f32 / (N - 1) as f32;
-            entries.push(gradient_at(stops, t));
+            let c = gradient_at(stops, t);
+            entries.push(if c == Color::Reset {
+                Color::Rgb(128, 128, 128)
+            } else {
+                c
+            });
         }
         Self { entries }
     }

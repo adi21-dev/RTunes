@@ -131,7 +131,8 @@ impl crate::visualizer::Visualizer for Spectrogram {
             self.mags_buf.resize(w, 0.0);
         }
 
-        let rows = &d.spectrogram_rows;
+        let rows_guard = d.spectrogram_rows.lock().expect("spectrogram mutex");
+        let rows = &*rows_guard;
         let bg = parse_hex(&theme.background);
         let threshold = 0.02f32;
 
@@ -258,13 +259,11 @@ mod tests {
 
     #[test]
     fn spectrogram_top_row_lerp() {
-        use std::sync::Arc;
         let mut s = Spectrogram::new();
         s.prev_top = vec![0.0f32; 64];
         let mut d = VisualizerData::empty(64);
         d.bins_smoothed[0] = 1.0;
-        let rows = Arc::make_mut(&mut d.spectrogram_rows);
-        rows.push_front(d.bins_smoothed.clone());
+        d.spectrogram_rows.lock().unwrap().push_front(d.bins_smoothed.clone());
         let v = lerp_f32(0.0, 1.0, 0.5);
         assert!((v - 0.5).abs() < 1e-5);
     }
