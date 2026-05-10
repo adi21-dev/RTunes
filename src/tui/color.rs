@@ -45,8 +45,7 @@ pub fn lerp_color(a: Color, b: Color, t: f32) -> Color {
 }
 
 /// Map `t ∈ [0,1]` across `stops` (at least one); piecewise linear in RGB space.
-pub fn gradient_at(stops: &[String], t: f32) -> Color {
-    if stops.is_empty() {
+pub fn gradient_at(stops: &[String], t: f32) -> Color {    if stops.is_empty() {
         return Color::Reset;
     }
     if stops.len() == 1 {
@@ -60,6 +59,36 @@ pub fn gradient_at(stops: &[String], t: f32) -> Color {
     let c0 = parse_hex(&stops[i]);
     let c1 = parse_hex(&stops[i + 1]);
     lerp_color(c0, c1, local)
+}
+
+/// Pre-computed 256-entry gradient LUT.
+///
+/// Build once per theme change with [`GradientLut::new`], then use [`GradientLut::get`]
+/// in render hot-loops instead of calling `gradient_at` (which re-parses hex every call).
+#[derive(Clone)]
+pub struct GradientLut {
+    entries: Vec<Color>,
+}
+
+impl GradientLut {
+    /// Build a 256-entry LUT from gradient stop strings.
+    pub fn new(stops: &[String]) -> Self {
+        const N: usize = 256;
+        let mut entries = Vec::with_capacity(N);
+        for i in 0..N {
+            let t = i as f32 / (N - 1) as f32;
+            entries.push(gradient_at(stops, t));
+        }
+        Self { entries }
+    }
+
+    /// Look up pre-computed `Color` for `t ∈ [0, 1]` (clamped).
+    #[inline]
+    pub fn get(&self, t: f32) -> Color {
+        let t = t.clamp(0.0, 1.0);
+        let i = (t * (self.entries.len() - 1) as f32) as usize;
+        self.entries[i.min(self.entries.len() - 1)]
+    }
 }
 
 #[cfg(test)]

@@ -59,7 +59,11 @@ pub fn catmull_rom(points: &[(f32, f32)], samples_per_segment: usize) -> Vec<(f3
     out
 }
 
-/// Companion glow pass: ±1 grid dot offsets in canvas space, blended toward background.
+/// Radial multi-ring glow approximating a Gaussian falloff.
+///
+/// Three concentric shells at increasing radius with decreasing brightness give a
+/// soft, organic halo instead of the hard 4-point ring. For dense point clouds the
+/// function falls back to a single cheap ring to stay within the render budget.
 pub fn glow_pass(
     ctx: &mut Context<'_>,
     width: u16,
@@ -75,7 +79,6 @@ pub fn glow_pass(
         return;
     }
     let bg = parse_hex(&theme.background);
-    let glow_c = lerp_color(primary, bg, 0.6);
     let res_x = f64::from(width) * 2.0;
     let res_y = f64::from(height) * 4.0;
     let xspan = (x_bounds[1] - x_bounds[0]).abs();
@@ -85,17 +88,63 @@ pub fn glow_pass(
     }
     let dx = xspan / (res_x - 1.0);
     let dy = yspan / (res_y - 1.0);
-    let mut halo: Vec<(f64, f64)> = Vec::with_capacity(primary_pts.len() * 4);
-    for &(x, y) in primary_pts {
-        halo.push((x - dx, y));
-        halo.push((x + dx, y));
-        halo.push((x, y - dy));
-        halo.push((x, y + dy));
+
+    // Dense point clouds: single 4-direction ring to stay within render budget.
+    if primary_pts.len() > 200 {
+        let glow_c = lerp_color(primary, bg, 0.55);
+        let mut halo: Vec<(f64, f64)> = Vec::with_capacity(primary_pts.len() * 4);
+        for &(x, y) in primary_pts {
+            halo.push((x - dx, y));
+            halo.push((x + dx, y));
+            halo.push((x, y - dy));
+            halo.push((x, y + dy));
+        }
+        ctx.draw(&Points { coords: &halo, color: glow_c });
+        return;
     }
-    ctx.draw(&Points {
-        coords: &halo,
-        color: glow_c,
-    });
+
+    // 3-ring radial glow — approximates a Gaussian falloff.
+    // Ring 1 (radius 1): 8 directions, bright inner glow.
+    let c1 = lerp_color(primary, bg, 0.30);
+    // Ring 2 (radius 2): 8 directions, softer mid-glow.
+    let c2 = lerp_color(primary, bg, 0.60);
+    // Ring 3 (radius 3.5): 4 cardinal directions, dim far halo.
+    let c3 = lerp_color(primary, bg, 0.85);
+
+    let n = primary_pts.len();
+    let mut ring1: Vec<(f64, f64)> = Vec::with_capacity(n * 8);
+    let mut ring2: Vec<(f64, f64)> = Vec::with_capacity(n * 8);
+    let mut ring3: Vec<(f64, f64)> = Vec::with_capacity(n * 4);
+
+    for &(x, y) in primary_pts {
+        // Ring 1 — unit radius, 8 directions (cardinal + diagonal).
+        ring1.push((x - dx,         y         ));
+        ring1.push((x + dx,         y         ));
+        ring1.push((x,              y - dy    ));
+        ring1.push((x,              y + dy    ));
+        ring1.push((x - dx * 0.707, y - dy * 0.707));
+        ring1.push((x + dx * 0.707, y - dy * 0.707));
+        ring1.push((x - dx * 0.707, y + dy * 0.707));
+        ring1.push((x + dx * 0.707, y + dy * 0.707));
+        // Ring 2 — radius 2, 8 directions.
+        ring2.push((x - dx * 2.0,   y         ));
+        ring2.push((x + dx * 2.0,   y         ));
+        ring2.push((x,              y - dy * 2.0));
+        ring2.push((x,              y + dy * 2.0));
+        ring2.push((x - dx * 1.414, y - dy * 1.414));
+        ring2.push((x + dx * 1.414, y - dy * 1.414));
+        ring2.push((x - dx * 1.414, y + dy * 1.414));
+        ring2.push((x + dx * 1.414, y + dy * 1.414));
+        // Ring 3 — radius 3.5, 4 cardinal directions.
+        ring3.push((x - dx * 3.5,   y         ));
+        ring3.push((x + dx * 3.5,   y         ));
+        ring3.push((x,              y - dy * 3.5));
+        ring3.push((x,              y + dy * 3.5));
+    }
+
+    ctx.draw(&Points { coords: &ring1, color: c1 });
+    ctx.draw(&Points { coords: &ring2, color: c2 });
+    ctx.draw(&Points { coords: &ring3, color: c3 });
 }
 
 #[cfg(test)]

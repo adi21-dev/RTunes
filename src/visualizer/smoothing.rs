@@ -68,6 +68,22 @@ pub fn ema_dt(prev: f32, target: f32, tau: f32, dt: f32) -> f32 {
     lerp(prev, target, alpha.clamp(0.0, 1.0))
 }
 
+/// Frequency-dependent EMA time constants for render-side display smoothing.
+/// Bass bins get a slower attack and release (sustain the note); treble bins
+/// respond faster (snappy hi-hats, crisp transients).
+///
+/// `bin_idx`: 0-based bar/bin index.  `num_bins`: total bars displayed.
+/// Returns `(attack_tau_secs, release_tau_secs)`.
+#[inline]
+pub fn band_tau(bin_idx: usize, num_bins: usize) -> (f32, f32) {
+    let t = (bin_idx as f32 / (num_bins.saturating_sub(1).max(1)) as f32).clamp(0.0, 1.0);
+    // Bass (t=0): attack 28 ms, release 200 ms.
+    // Treble (t=1): attack 7 ms,  release 55 ms.
+    let attack  = 0.028 - t * (0.028 - 0.007);
+    let release = 0.200 - t * (0.200 - 0.055);
+    (attack.max(0.004), release.max(0.010))
+}
+
 /// Peak hold with exponential decay toward the smoothed envelope.
 pub fn peak_hold_drift(peak: f32, smoothed: f32, decay: f32) -> f32 {
     smoothed.max(peak * decay)
@@ -247,7 +263,16 @@ impl SpectralFluxBeatDetector {
         } else {
             self.history.iter().copied().sum::<f32>() / self.history.len() as f32
         };
-        let threshold = mean_flux * 1.5;
+        // Adaptive threshold: 75th-percentile of recent flux history gives more
+        // consistent beat detection across quiet and loud passages than mean*1.5.
+        let threshold = if self.history.len() >= 8 {
+            let mut sorted: Vec<f32> = self.history.iter().copied().collect();
+            sorted.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+            let p75_idx = (sorted.len() * 3 / 4).saturating_sub(1);
+            (sorted[p75_idx] * 1.3).max(mean_flux * 1.2)
+        } else {
+            mean_flux * 1.5
+        };
 
         let mut beat = false;
         if flux > threshold {

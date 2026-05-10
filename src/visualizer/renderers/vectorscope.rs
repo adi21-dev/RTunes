@@ -22,6 +22,9 @@ pub struct Vectorscope {
     /// Reusable coordinate buffers for canvas rendering.
     primary: Vec<(f64, f64)>,
     trail_pts: Vec<(f64, f64)>,
+    /// Running peak amplitude tracker for auto-scale (slow rise / fast fall EMA).
+    /// Keeps the Lissajous figure visible even in quiet passages.
+    amp_peak: f32,
 }
 
 impl Vectorscope {
@@ -32,6 +35,7 @@ impl Vectorscope {
             pen_thick_until: None,
             primary: Vec::new(),
             trail_pts: Vec::new(),
+            amp_peak: 0.5,
         }
     }
 
@@ -83,7 +87,16 @@ impl crate::visualizer::Visualizer for Vectorscope {
 
         let pcm = &d.pcm_stereo;
         if pcm.len() >= 2 {
-            let scale = 0.45 * (w.min(h) as f32);
+            // Auto-gain: track running peak amplitude with asymmetric EMA.
+            // Slow rise (0.08) lets the figure grow gradually; fast fall (0.30)
+            // attenuates quickly on loud transients to prevent clipping.
+            let amp = pcm
+                .iter()
+                .flat_map(|&(l, r)| [l.abs(), r.abs()])
+                .fold(0.0f32, f32::max);
+            let t_gain = if amp > self.amp_peak { 0.08 } else { 0.30 };
+            self.amp_peak += (amp.max(0.05) - self.amp_peak) * t_gain;
+            let scale = 0.45 * w.min(h) as f32 / self.amp_peak.max(0.05);
             let wf = w as f32;
             let hf = h as f32;
             let cx = wf * 0.5;
