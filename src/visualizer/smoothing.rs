@@ -9,7 +9,9 @@ pub const DEFAULT_ATTACK: f32 = 0.5;
 pub const DEFAULT_RELEASE: f32 = 0.15;
 
 /// Display EMA for bar heights — smoother motion than raw FFT EMA defaults.
+#[allow(dead_code)]
 pub const DISPLAY_ATTACK: f32 = 0.50;
+#[allow(dead_code)]
 pub const DISPLAY_RELEASE: f32 = 0.08;
 
 #[inline]
@@ -21,6 +23,8 @@ fn lerp(a: f32, b: f32, t: f32) -> f32 {
 ///
 /// Allocates a temporary buffer internally. When smoothing multiple slices per
 /// frame, prefer [`apply_spectral_smoothing_with_scratch`] to reuse the buffer.
+#[deprecated(since = "0.1.0", note = "Use apply_spectral_smoothing_with_scratch to avoid per-frame allocation")]
+#[allow(dead_code)]
 pub fn apply_spectral_smoothing(bins: &mut [f32]) {
     let n = bins.len();
     if n < 3 {
@@ -53,6 +57,7 @@ pub fn apply_spectral_smoothing_with_scratch(bins: &mut [f32], scratch: &mut Vec
 }
 
 /// Per-bin asymmetric EMA: faster attack than release.
+#[allow(dead_code)]
 pub fn asymmetric_ema(prev: f32, new: f32, attack: f32, release: f32) -> f32 {
     let t = if new > prev { attack } else { release };
     lerp(prev, new, t)
@@ -226,6 +231,8 @@ pub struct SpectralFluxBeatDetector {
     intensity: f32,
     beat_times: VecDeque<Instant>,
     history_len: usize,
+    /// Reusable scratch buffer for the 75th-percentile sort — avoids a per-frame allocation.
+    sort_scratch: Vec<f32>,
 }
 
 impl SpectralFluxBeatDetector {
@@ -237,13 +244,18 @@ impl SpectralFluxBeatDetector {
             intensity: 0.0,
             beat_times: VecDeque::with_capacity(16),
             history_len,
+            sort_scratch: Vec::new(),
         }
     }
 
     /// Returns `(beat_this_frame, intensity)` where intensity decays after a beat.
     pub fn ingest(&mut self, mags: &[f32], now: Instant) -> (bool, f32) {
         if self.prev_mag.len() != mags.len() {
+            // Bin count changed (e.g. FFT restart); reset prev to avoid a spurious
+            // high-flux beat on the first frame with the new size.
             self.prev_mag.resize(mags.len(), 0.0);
+            self.prev_mag.copy_from_slice(mags);
+            return (false, self.intensity * 0.92);
         }
 
         let mut flux = 0.0f32;
@@ -266,10 +278,11 @@ impl SpectralFluxBeatDetector {
         // Adaptive threshold: 75th-percentile of recent flux history gives more
         // consistent beat detection across quiet and loud passages than mean*1.5.
         let threshold = if self.history.len() >= 8 {
-            let mut sorted: Vec<f32> = self.history.iter().copied().collect();
-            sorted.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-            let p75_idx = (sorted.len() * 3 / 4).saturating_sub(1);
-            (sorted[p75_idx] * 1.3).max(mean_flux * 1.2)
+            self.sort_scratch.clear();
+            self.sort_scratch.extend(self.history.iter().copied());
+            self.sort_scratch.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+            let p75_idx = (self.sort_scratch.len() * 3 / 4).saturating_sub(1);
+            (self.sort_scratch[p75_idx] * 1.3).max(mean_flux * 1.2)
         } else {
             mean_flux * 1.5
         };

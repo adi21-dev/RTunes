@@ -122,7 +122,6 @@ impl crate::visualizer::Visualizer for Oscilloscope {
         let trail = dim_with_intensity(parse_hex(&theme.viz.wave_trail), bg, vi);
         let wf = w as f64;
         let hf = h as f64;
-        let theme_owned = theme.clone();
 
         // Reuse member buffers (clear preserves capacity — no heap alloc in steady state).
         self.primary.clear();
@@ -167,7 +166,7 @@ impl crate::visualizer::Visualizer for Oscilloscope {
                         [0.0, wf],
                         [0.0, hf],
                         &primary,
-                        &theme_owned,
+                        bg,
                         wave,
                         glow_on,
                     );

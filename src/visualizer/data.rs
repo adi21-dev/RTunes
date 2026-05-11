@@ -1,7 +1,7 @@
 //! Per-frame data from the FFT thread to the renderer (Phase 6+).
 
 use std::collections::VecDeque;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 /// Per-frame data delivered from the FFT thread to the renderer.
@@ -24,8 +24,9 @@ pub struct VisualizerData {
     pub beat: bool,
     pub beat_intensity: f32,
     pub bpm_estimate: Option<f32>,
-    /// Shared spectrogram ring — cheap to clone (Arc pointer).
-    pub spectrogram_rows: Arc<VecDeque<Vec<f32>>>,
+    /// Shared spectrogram ring — single Mutex-guarded deque shared by all pool slots
+    /// so every FFT frame accumulates into one unbroken history.
+    pub spectrogram_rows: Arc<Mutex<VecDeque<Vec<f32>>>>,
     pub timestamp: Instant,
     pub fft_period: Duration,
 }
@@ -47,7 +48,7 @@ impl VisualizerData {
             beat: false,
             beat_intensity: 0.0,
             bpm_estimate: None,
-            spectrogram_rows: Arc::new(VecDeque::new()),
+            spectrogram_rows: Arc::new(Mutex::new(VecDeque::new())),
             timestamp: now,
             fft_period: Duration::from_millis(33),
         }

@@ -11,7 +11,7 @@ use ratatui::Frame;
 
 use crate::tui::color::{dim_with_intensity, parse_hex};
 use crate::visualizer::smoothing::{
-    apply_spectral_smoothing, treble_tilt, AutoGain, OneEuroFilter,
+    apply_spectral_smoothing_with_scratch, treble_tilt, AutoGain, OneEuroFilter,
 };
 use crate::visualizer::VisualizerData;
 
@@ -52,6 +52,8 @@ pub struct Supernova {
     outer_pts: Vec<(f64, f64)>,
     core_pts: Vec<(f64, f64)>,
     glow_src: Vec<(f64, f64)>,
+    /// Scratch buffer for zero-alloc spectral smoothing (reused each frame).
+    smooth_scratch: Vec<f32>,
 }
 
 impl Supernova {
@@ -65,6 +67,7 @@ impl Supernova {
             outer_pts: Vec::with_capacity(SPOKES),
             core_pts: Vec::with_capacity(64),
             glow_src: Vec::with_capacity(SPOKES + 64),
+            smooth_scratch: Vec::new(),
         }
     }
 
@@ -74,8 +77,8 @@ impl Supernova {
         decimate_bins_32(&d.bins_prev, &mut self.prev32);
         treble_tilt(&mut self.cur32, 0.6);
         treble_tilt(&mut self.prev32, 0.6);
-        apply_spectral_smoothing(&mut self.cur32);
-        apply_spectral_smoothing(&mut self.prev32);
+        apply_spectral_smoothing_with_scratch(&mut self.cur32, &mut self.smooth_scratch);
+        apply_spectral_smoothing_with_scratch(&mut self.prev32, &mut self.smooth_scratch);
         self.auto_gain.apply(&self.cur32)
     }
 }
@@ -157,7 +160,6 @@ impl crate::visualizer::Visualizer for Supernova {
             core_pts.push((cx + r0 * ang.cos(), cy + r0 * ang.sin()));
         }
 
-        let theme_owned = theme.clone();
         let glow_src: Vec<(f64, f64)> = outer_pts.iter().chain(core_pts.iter()).copied().collect();
 
         let canvas = Canvas::default()
@@ -181,7 +183,7 @@ impl crate::visualizer::Visualizer for Supernova {
                         [0.0, wf],
                         [0.0, hf],
                         &glow_src,
-                        &theme_owned,
+                        bg,
                         core_color,
                         glow_on,
                     );

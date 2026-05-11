@@ -232,13 +232,12 @@ impl crate::visualizer::Visualizer for Particles {
             }
         }
 
-        // Move coord slices into the closure. We clone only the small theme struct here;
-        // the coord Vecs are moved in as owned to satisfy the 'static closure requirement.
+        // Move coord slices into the closure (clone the small Vecs).
+        // bg is Copy so we capture it without needing theme_owned.
         let hist_coords = self.hist_coords.clone();
         let hist_cols = self.hist_cols.clone();
         let live = self.live_coords.clone();
         let live_c = self.live_cols.clone();
-        let theme_owned = theme.clone();
         let canvas = Canvas::default()
             .marker(Marker::Braille)
             .x_bounds([0.0, wf64])
@@ -265,7 +264,7 @@ impl crate::visualizer::Visualizer for Particles {
                         [0.0, wf64],
                         [0.0, hf64],
                         &live,
-                        &theme_owned,
+                        bg,
                         default_c,
                         true,
                     );

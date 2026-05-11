@@ -8,6 +8,8 @@ use ratatui::widgets::canvas::{Canvas, Points};
 use ratatui::symbols::Marker;
 use ratatui::Frame;
 
+use std::sync::Arc;
+
 use crate::config::Theme;
 use crate::config::theme::BarStyle;
 use crate::tui::color::{dim_with_intensity, lerp_color, parse_hex, GradientLut};
@@ -61,7 +63,7 @@ pub struct Spectrum {
     /// Pre-allocated bar height buffer — avoids a per-frame Vec allocation.
     heights: Vec<f32>,
     /// Cached gradient LUT for the active theme (rebuilt only when stops change).
-    lut: Option<GradientLut>,
+    lut: Option<Arc<GradientLut>>,
     /// Last-seen gradient stop strings — used for LUT invalidation.
     lut_stops: Vec<String>,
 }
@@ -88,13 +90,24 @@ impl Spectrum {
 
     fn ensure_scratch(&mut self, bars: usize) {
         if bars != self.last_bars {
+            let old_bars = self.last_bars;
+            let old_ema: Vec<f32> = self.display_ema.clone();
+            let old_peak: Vec<f32> = self.decimated_peak.clone();
             self.last_bars = bars;
             self.decimated_cur.resize(bars, 0.0);
             self.decimated_prev.resize(bars, 0.0);
-            self.decimated_peak.resize(bars, 0.0);
-            self.display_ema.resize(bars, 0.0);
-            self.display_ema.fill(0.0);
             self.heights.resize(bars, 0.0);
+            // Linearly resample display_ema and decimated_peak to the new bar count
+            // so there is no sudden jump or 1-frame silence thump on resize.
+            self.display_ema.resize(bars, 0.0);
+            self.decimated_peak.resize(bars, 0.0);
+            if old_bars > 0 {
+                for i in 0..bars {
+                    let src_i = i * old_bars / bars;
+                    self.display_ema[i] = old_ema.get(src_i).copied().unwrap_or(0.0);
+                    self.decimated_peak[i] = old_peak.get(src_i).copied().unwrap_or(0.0);
+                }
+            }
             // smooth_scratch is resized on demand inside apply_spectral_smoothing_with_scratch.
         }
     }
@@ -178,7 +191,7 @@ impl Spectrum {
         heights: &[f32],
         _peaks: &[f32],
         theme: &Theme,
-        lut: GradientLut,
+        lut: Arc<GradientLut>,
         mirror_y: bool,
         dim: bool,
         viz_intensity: f32,
@@ -248,7 +261,7 @@ impl crate::visualizer::Visualizer for Spectrum {
         // Rebuild gradient LUT if theme stops have changed (typically only on theme switch).
         let stops = &theme.viz.gradient;
         if self.lut.is_none() || *stops != self.lut_stops {
-            self.lut = Some(GradientLut::new(stops));
+            self.lut = Some(Arc::new(GradientLut::new(stops)));
             self.lut_stops = stops.clone();
         }
         let lut = self.lut.as_ref().expect("lut just initialised");
@@ -293,7 +306,7 @@ impl crate::visualizer::Visualizer for Spectrum {
                         &self.heights,
                         &self.decimated_peak,
                         theme,
-                        lut.clone(),
+                        Arc::clone(lut),
                         false,
                         false,
                         rctx.viz_intensity,
@@ -304,7 +317,7 @@ impl crate::visualizer::Visualizer for Spectrum {
                         &self.heights,
                         &self.decimated_peak,
                         theme,
-                        lut.clone(),
+                        Arc::clone(lut),
                         true,
                         true,
                         rctx.viz_intensity,
@@ -317,7 +330,7 @@ impl crate::visualizer::Visualizer for Spectrum {
                         &self.heights,
                         &self.decimated_peak,
                         theme,
-                        lut,
+                        lut.as_ref(),
                         false,
                         false,
                         false,
@@ -329,7 +342,7 @@ impl crate::visualizer::Visualizer for Spectrum {
                         &self.heights,
                         &self.decimated_peak,
                         theme,
-                        lut,
+                        lut.as_ref(),
                         true,
                         true,
                         false,
@@ -343,7 +356,7 @@ impl crate::visualizer::Visualizer for Spectrum {
                         &self.heights,
                         &self.decimated_peak,
                         theme,
-                        lut,
+                        lut.as_ref(),
                         false,
                         false,
                         true,
@@ -355,7 +368,7 @@ impl crate::visualizer::Visualizer for Spectrum {
                         &self.heights,
                         &self.decimated_peak,
                         theme,
-                        lut,
+                        lut.as_ref(),
                         true,
                         true,
                         true,
@@ -372,7 +385,7 @@ impl crate::visualizer::Visualizer for Spectrum {
                         &self.heights,
                         &self.decimated_peak,
                         theme,
-                        lut.clone(),
+                        Arc::clone(lut),
                         false,
                         false,
                         rctx.viz_intensity,
@@ -385,7 +398,7 @@ impl crate::visualizer::Visualizer for Spectrum {
                         &self.heights,
                         &self.decimated_peak,
                         theme,
-                        lut,
+                        lut.as_ref(),
                         false,
                         false,
                         false,
@@ -399,7 +412,7 @@ impl crate::visualizer::Visualizer for Spectrum {
                         &self.heights,
                         &self.decimated_peak,
                         theme,
-                        lut,
+                        lut.as_ref(),
                         false,
                         false,
                         true,
@@ -413,6 +426,7 @@ impl crate::visualizer::Visualizer for Spectrum {
 
     fn reset(&mut self) {
         self.display_ema.clear();
+        self.heights.clear();
         self.last_bars = 0;
     }
 }
