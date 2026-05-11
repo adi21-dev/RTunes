@@ -2069,7 +2069,7 @@ dependencies = [
  "serde_yaml",
  "sha2",
  "shellexpand",
- "thiserror 1.0.69",
+ "thiserror 2.0.18",
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
