@@ -320,7 +320,7 @@ pub fn trigger_rescan(state: &Arc<Mutex<AppState>>, config: &Arc<Mutex<RtunesCon
     let Some(scan_handle) = scan_async(roots, tx) else {
         let mut g = lock_shared(state);
         set_toast(
-            &mut *g,
+            &mut g,
             "Rescan already in progress; will rescan when complete.",
         );
         return;
