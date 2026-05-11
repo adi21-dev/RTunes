@@ -51,9 +51,7 @@ pub fn validate_url(raw: &str) -> Result<Url> {
     let u = Url::parse(s).map_err(|e| RtunesError::Fetcher(e.to_string()))?;
     match u.scheme() {
         "http" | "https" => Ok(u),
-        _ => Err(RtunesError::Fetcher(
-            "only http(s) URLs are allowed".into(),
-        )),
+        _ => Err(RtunesError::Fetcher("only http(s) URLs are allowed".into())),
     }
 }
 
@@ -130,10 +128,7 @@ fn parse_download_percent(line: &str) -> Option<f32> {
 }
 
 fn parse_destination(line: &str) -> Option<PathBuf> {
-    const PREFIXES: [&str; 2] = [
-        "[ExtractAudio] Destination: ",
-        "[download] Destination: ",
-    ];
+    const PREFIXES: [&str; 2] = ["[ExtractAudio] Destination: ", "[download] Destination: "];
     for p in PREFIXES {
         if let Some(rest) = line.strip_prefix(p) {
             let path = rest.trim().trim_matches('"');
@@ -165,7 +160,8 @@ impl Fetcher for YtDlpFetcher {
             None => {
                 let _ = tx.send(FetchEvent::Failed(
                     "yt-dlp not found. Place it in deps/ next to rtunes.exe, install it to PATH, \
-                     or press F2 in the TUI to configure the path.".into(),
+                     or press F2 in the TUI to configure the path."
+                        .into(),
                 ));
                 return Ok(());
             }
@@ -175,14 +171,18 @@ impl Fetcher for YtDlpFetcher {
             None => {
                 let _ = tx.send(FetchEvent::Failed(
                     "ffmpeg not found. Place it in deps/ next to rtunes.exe, install it to PATH, \
-                     or press F2 in the TUI to configure the path.".into(),
+                     or press F2 in the TUI to configure the path."
+                        .into(),
                 ));
                 return Ok(());
             }
         };
 
         fs::create_dir_all(&opts.output_dir).map_err(|e| {
-            RtunesError::Fetcher(format!("create output dir {}: {e}", opts.output_dir.display()))
+            RtunesError::Fetcher(format!(
+                "create output dir {}: {e}",
+                opts.output_dir.display()
+            ))
         })?;
 
         let out_tmpl = opts
@@ -212,20 +212,18 @@ impl Fetcher for YtDlpFetcher {
         let stdout = child.stdout.take();
         let _drain_out = std::thread::spawn(move || {
             if let Some(r) = stdout {
-                for _ in BufReader::new(r).lines().filter_map(std::result::Result::ok) {}
+                for _ in BufReader::new(r).lines().map_while(|l| l.ok()) {}
             }
         });
 
-        let stderr = child.stderr.take().ok_or_else(|| {
-            RtunesError::Fetcher("yt-dlp stderr not captured".into())
-        })?;
+        let stderr = child
+            .stderr
+            .take()
+            .ok_or_else(|| RtunesError::Fetcher("yt-dlp stderr not captured".into()))?;
 
         let mut last_path: Option<PathBuf> = None;
         let mut stderr_full = String::new();
-        for line in BufReader::new(stderr)
-            .lines()
-            .filter_map(std::result::Result::ok)
-        {
+        for line in BufReader::new(stderr).lines().map_while(|l| l.ok()) {
             stderr_full.push_str(&line);
             stderr_full.push('\n');
             if let Some(pct) = parse_download_percent(&line) {
@@ -239,7 +237,9 @@ impl Fetcher for YtDlpFetcher {
             }
         }
 
-        let status = child.wait().map_err(|e| RtunesError::Fetcher(e.to_string()))?;
+        let status = child
+            .wait()
+            .map_err(|e| RtunesError::Fetcher(e.to_string()))?;
         let _ = _drain_out.join();
         let stderr_text = stderr_full;
         if !status.success() {
@@ -283,7 +283,10 @@ pub struct MockFetcher;
 impl Fetcher for MockFetcher {
     fn fetch(&self, url: &Url, opts: &FetchOpts, tx: Sender<FetchEvent>) -> Result<()> {
         fs::create_dir_all(&opts.output_dir).map_err(|e| {
-            RtunesError::Fetcher(format!("create output dir {}: {e}", opts.output_dir.display()))
+            RtunesError::Fetcher(format!(
+                "create output dir {}: {e}",
+                opts.output_dir.display()
+            ))
         })?;
 
         let stem = url
@@ -375,8 +378,7 @@ mod tests {
 
     #[test]
     fn resolve_tool_path_accepts_directory() {
-        let dir = std::env::temp_dir()
-            .join(format!("rtunes-dir-resolve-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("rtunes-dir-resolve-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
 
@@ -414,8 +416,7 @@ mod tests {
 
     #[test]
     fn try_resolve_tools_ok_when_both_present() {
-        let dir = std::env::temp_dir()
-            .join(format!("rtunes-try-resolve-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("rtunes-try-resolve-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
 

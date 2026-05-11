@@ -40,13 +40,7 @@ pub fn spawn_fft_thread(
 ) -> FftHandle {
     let (tx, rx) = bounded::<Arc<VisualizerData>>(2);
     let join = std::thread::spawn(move || {
-        fft_loop(
-            state,
-            ring,
-            sample_rate_hz,
-            audio_cfg,
-            tx,
-        );
+        fft_loop(state, ring, sample_rate_hz, audio_cfg, tx);
     });
     FftHandle { join, rx }
 }
@@ -149,7 +143,7 @@ fn fft_loop(
         // Zero-alloc spectral smoothing — reuses pre-allocated scratch buffer.
         apply_spectral_smoothing_with_scratch(&mut bins_raw, &mut spectral_scratch);
         debug_assert!(
-            bins_raw.iter().all(|&v| v >= 0.0 && v <= 1.0),
+            bins_raw.iter().all(|&v| (0.0..=1.0).contains(&v)),
             "bins_raw out of [0, 1]"
         );
 
@@ -180,11 +174,15 @@ fn fft_loop(
         // treble responds quickly (sharp transients).
         for i in 0..NUM_VIS_BINS {
             let (tau_a, tau_r) = band_tau(i, NUM_VIS_BINS);
-            let band_attack  = 1.0 - (-dt / tau_a).exp();
+            let band_attack = 1.0 - (-dt / tau_a).exp();
             let band_release = 1.0 - (-dt / tau_r).exp();
             let target = bins_raw[i];
-            let prev   = prev_smoothed[i];
-            let alpha  = if target > prev { band_attack } else { band_release };
+            let prev = prev_smoothed[i];
+            let alpha = if target > prev {
+                band_attack
+            } else {
+                band_release
+            };
             bins_smoothed[i] = (prev + alpha * (target - prev)).clamp(0.0, 1.0);
             bins_peak[i] = peak_hold_drift(bins_peak[i], bins_smoothed[i], peak_decay);
         }

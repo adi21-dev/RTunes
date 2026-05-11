@@ -63,6 +63,7 @@ pub fn catmull_rom(points: &[(f32, f32)], samples_per_segment: usize) -> Vec<(f3
 /// Three concentric shells at increasing radius with decreasing brightness give a
 /// soft, organic halo instead of the hard 4-point ring. For dense point clouds the
 /// function falls back to a single cheap ring to stay within the render budget.
+#[allow(clippy::too_many_arguments)]
 pub fn glow_pass(
     ctx: &mut Context<'_>,
     width: u16,
@@ -97,7 +98,10 @@ pub fn glow_pass(
             halo.push((x, y - dy));
             halo.push((x, y + dy));
         }
-        ctx.draw(&Points { coords: &halo, color: glow_c });
+        ctx.draw(&Points {
+            coords: &halo,
+            color: glow_c,
+        });
         return;
     }
 
@@ -122,33 +126,42 @@ pub fn glow_pass(
 
     for &(x, y) in primary_pts {
         // Ring 1 — unit radius, 8 directions (cardinal + diagonal).
-        ring1.push((x - dx,         y         ));
-        ring1.push((x + dx,         y         ));
-        ring1.push((x,              y - dy    ));
-        ring1.push((x,              y + dy    ));
+        ring1.push((x - dx, y));
+        ring1.push((x + dx, y));
+        ring1.push((x, y - dy));
+        ring1.push((x, y + dy));
         ring1.push((x - dx * 0.707, y - dy * 0.707));
         ring1.push((x + dx * 0.707, y - dy * 0.707));
         ring1.push((x - dx * 0.707, y + dy * 0.707));
         ring1.push((x + dx * 0.707, y + dy * 0.707));
         // Ring 2 — radius 2, 8 directions.
-        ring2.push((x - r2_x,          y           ));
-        ring2.push((x + r2_x,          y           ));
-        ring2.push((x,                 y - r2_y    ));
-        ring2.push((x,                 y + r2_y    ));
-        ring2.push((x - r2_x * 0.707,  y - r2_y * 0.707));
-        ring2.push((x + r2_x * 0.707,  y - r2_y * 0.707));
-        ring2.push((x - r2_x * 0.707,  y + r2_y * 0.707));
-        ring2.push((x + r2_x * 0.707,  y + r2_y * 0.707));
+        ring2.push((x - r2_x, y));
+        ring2.push((x + r2_x, y));
+        ring2.push((x, y - r2_y));
+        ring2.push((x, y + r2_y));
+        ring2.push((x - r2_x * 0.707, y - r2_y * 0.707));
+        ring2.push((x + r2_x * 0.707, y - r2_y * 0.707));
+        ring2.push((x - r2_x * 0.707, y + r2_y * 0.707));
+        ring2.push((x + r2_x * 0.707, y + r2_y * 0.707));
         // Ring 3 — radius 3.5, 4 cardinal directions.
-        ring3.push((x - r3_x,   y       ));
-        ring3.push((x + r3_x,   y       ));
-        ring3.push((x,          y - r3_y));
-        ring3.push((x,          y + r3_y));
+        ring3.push((x - r3_x, y));
+        ring3.push((x + r3_x, y));
+        ring3.push((x, y - r3_y));
+        ring3.push((x, y + r3_y));
     }
 
-    ctx.draw(&Points { coords: &ring1, color: c1 });
-    ctx.draw(&Points { coords: &ring2, color: c2 });
-    ctx.draw(&Points { coords: &ring3, color: c3 });
+    ctx.draw(&Points {
+        coords: &ring1,
+        color: c1,
+    });
+    ctx.draw(&Points {
+        coords: &ring2,
+        color: c2,
+    });
+    ctx.draw(&Points {
+        coords: &ring3,
+        color: c3,
+    });
 }
 
 #[cfg(test)]

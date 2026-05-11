@@ -80,7 +80,11 @@ fn executable_name_candidates(name: &str) -> Vec<String> {
         {
             vec![name.to_string()]
         } else {
-            vec![format!("{name}.exe"), format!("{name}.cmd"), name.to_string()]
+            vec![
+                format!("{name}.exe"),
+                format!("{name}.cmd"),
+                name.to_string(),
+            ]
         }
     }
     #[cfg(target_os = "macos")]
@@ -159,8 +163,7 @@ mod tests {
 
     #[test]
     fn safe_path_resolves_file_under_root() {
-        let dir =
-            std::env::temp_dir().join(format!("rtunes-safe-path-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("rtunes-safe-path-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(dir.join("sub")).unwrap();
         let f = dir.join("sub").join("x.txt");
@@ -175,8 +178,7 @@ mod tests {
 
     #[test]
     fn safe_path_rejects_parent_dir() {
-        let dir =
-            std::env::temp_dir().join(format!("rtunes-safe-path2-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("rtunes-safe-path2-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         assert!(safe_path(&dir, "../etc/passwd").is_err());
@@ -185,8 +187,7 @@ mod tests {
 
     #[test]
     fn safe_path_rejects_absolute_rel() {
-        let dir =
-            std::env::temp_dir().join(format!("rtunes-safe-path3-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("rtunes-safe-path3-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         #[cfg(unix)]
@@ -205,8 +206,7 @@ mod tests {
     fn safe_path_rejects_symlink_outside_root() {
         use std::os::unix::fs::symlink;
 
-        let dir =
-            std::env::temp_dir().join(format!("rtunes-safe-sym-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("rtunes-safe-sym-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         let outside = std::env::temp_dir().join(format!("rtunes-safe-out-{}", std::process::id()));

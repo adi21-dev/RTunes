@@ -23,7 +23,10 @@ fn lerp(a: f32, b: f32, t: f32) -> f32 {
 ///
 /// Allocates a temporary buffer internally. When smoothing multiple slices per
 /// frame, prefer [`apply_spectral_smoothing_with_scratch`] to reuse the buffer.
-#[deprecated(since = "0.1.0", note = "Use apply_spectral_smoothing_with_scratch to avoid per-frame allocation")]
+#[deprecated(
+    since = "0.1.0",
+    note = "Use apply_spectral_smoothing_with_scratch to avoid per-frame allocation"
+)]
 #[allow(dead_code)]
 pub fn apply_spectral_smoothing(bins: &mut [f32]) {
     let n = bins.len();
@@ -84,7 +87,7 @@ pub fn band_tau(bin_idx: usize, num_bins: usize) -> (f32, f32) {
     let t = (bin_idx as f32 / (num_bins.saturating_sub(1).max(1)) as f32).clamp(0.0, 1.0);
     // Bass (t=0): attack 28 ms, release 200 ms.
     // Treble (t=1): attack 7 ms,  release 55 ms.
-    let attack  = 0.028 - t * (0.028 - 0.007);
+    let attack = 0.028 - t * (0.028 - 0.007);
     let release = 0.200 - t * (0.200 - 0.055);
     (attack.max(0.004), release.max(0.010))
 }
@@ -118,6 +121,12 @@ pub struct AutoGain {
     slow: f32,
     min: f32,
     max: f32,
+}
+
+impl Default for AutoGain {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl AutoGain {
@@ -259,10 +268,10 @@ impl SpectralFluxBeatDetector {
         }
 
         let mut flux = 0.0f32;
-        for i in 0..mags.len() {
-            let d = mags[i] - self.prev_mag[i];
+        for (prev, &mag) in self.prev_mag.iter_mut().zip(mags.iter()) {
+            let d = mag - *prev;
             flux += d.max(0.0);
-            self.prev_mag[i] = mags[i];
+            *prev = mag;
         }
 
         while self.history.len() >= self.history_len {
@@ -280,7 +289,8 @@ impl SpectralFluxBeatDetector {
         let threshold = if self.history.len() >= 8 {
             self.sort_scratch.clear();
             self.sort_scratch.extend(self.history.iter().copied());
-            self.sort_scratch.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+            self.sort_scratch
+                .sort_unstable_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
             let p75_idx = (self.sort_scratch.len() * 3 / 4).saturating_sub(1);
             (self.sort_scratch[p75_idx] * 1.3).max(mean_flux * 1.2)
         } else {
@@ -330,7 +340,7 @@ impl SpectralFluxBeatDetector {
         ivals = ivals[start..].to_vec();
         ivals.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
         let mid = ivals.len() / 2;
-        let median_dt = if ivals.len() % 2 == 0 {
+        let median_dt = if ivals.len().is_multiple_of(2) {
             (ivals[mid - 1] + ivals[mid]) * 0.5
         } else {
             ivals[mid]
@@ -448,7 +458,10 @@ mod tests {
         }
         t += Duration::from_millis(10);
         let (b3, _) = d.ingest(&impulse, t);
-        assert!(b3, "after interval + quiet frames a new beat should be allowed");
+        assert!(
+            b3,
+            "after interval + quiet frames a new beat should be allowed"
+        );
     }
 
     #[test]
@@ -492,7 +505,11 @@ mod tests {
         for _ in 0..200 {
             ag.apply(&tiny);
         }
-        assert!(ag.gain() <= 4.01, "gain should clamp to max, got {}", ag.gain());
+        assert!(
+            ag.gain() <= 4.01,
+            "gain should clamp to max, got {}",
+            ag.gain()
+        );
     }
 
     #[test]
@@ -502,14 +519,8 @@ mod tests {
             ag.apply(&[1.0f32; 8]);
         }
         let g = ag.gain();
-        assert!(
-            g < 1.0,
-            "loud peak should pull gain below 1.0, got {g}"
-        );
-        assert!(
-            g >= 0.49,
-            "gain should stay at or above min=0.5, got {g}"
-        );
+        assert!(g < 1.0, "loud peak should pull gain below 1.0, got {g}");
+        assert!(g >= 0.49, "gain should stay at or above min=0.5, got {g}");
     }
 
     #[test]

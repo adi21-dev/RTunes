@@ -14,13 +14,12 @@ use crate::app::state::{track_id_for_path, Track};
 use crate::utils;
 
 /// Recognized audio file extensions (lowercase, no leading dot).
-pub const AUDIO_EXTENSIONS: &[&str] =
-    &["mp3", "flac", "wav", "m4a", "opus", "ogg", "aac"];
+pub const AUDIO_EXTENSIONS: &[&str] = &["mp3", "flac", "wav", "m4a", "opus", "ogg", "aac"];
 
 /// Case-insensitive extension check (expects `ext` without leading `.`).
 pub fn is_audio_extension(ext: &str) -> bool {
     let e = ext.to_ascii_lowercase();
-    AUDIO_EXTENSIONS.iter().any(|&a| a == e.as_str())
+    AUDIO_EXTENSIONS.contains(&e.as_str())
 }
 
 /// Remove `[...]` segments (YouTube-style tags, ids) without regex.
@@ -113,10 +112,7 @@ fn extract_metadata(path: &Path) -> Track {
                 .or_else(|| tagged.first_tag())
                 .map(|tag| {
                     let tag_artist = tag.artist().map(|a| a.to_string());
-                    let title_opt = tag
-                        .title()
-                        .map(|t| t.to_string())
-                        .filter(|s| !s.is_empty());
+                    let title_opt = tag.title().map(|t| t.to_string()).filter(|s| !s.is_empty());
                     match title_opt {
                         Some(t) => (t, tag_artist, tag.album().map(|a| a.to_string())),
                         None => {
@@ -206,7 +202,10 @@ pub fn scan_paths(paths: &[PathBuf]) -> Vec<Track> {
     }
 
     unique_files.sort();
-    unique_files.into_iter().map(|p| extract_metadata(&p)).collect()
+    unique_files
+        .into_iter()
+        .map(|p| extract_metadata(&p))
+        .collect()
 }
 
 /// Progress and completion events from a background scan (`scan_async`).
@@ -285,7 +284,10 @@ fn run_scan_async_inner(paths: Vec<PathBuf>, tx: Sender<ScanEvent>) {
 ///
 /// Drain `ScanEvent` on `tx`'s paired receiver; terminal event is [`ScanEvent::Done`].
 #[allow(dead_code)]
-pub fn scan_async(paths: Vec<PathBuf>, tx: Sender<ScanEvent>) -> Option<std::thread::JoinHandle<()>> {
+pub fn scan_async(
+    paths: Vec<PathBuf>,
+    tx: Sender<ScanEvent>,
+) -> Option<std::thread::JoinHandle<()>> {
     match IS_SCANNING.compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst) {
         Ok(_) => {}
         Err(_) => {
@@ -348,10 +350,22 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("rtunes-scan-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(dir.join("sub")).unwrap();
-        std::fs::File::create(dir.join("a.mp3")).unwrap().write_all(b"x").unwrap();
-        std::fs::File::create(dir.join("b.flac")).unwrap().write_all(b"x").unwrap();
-        std::fs::File::create(dir.join("sub/c.wav")).unwrap().write_all(b"x").unwrap();
-        std::fs::File::create(dir.join("noise.txt")).unwrap().write_all(b"x").unwrap();
+        std::fs::File::create(dir.join("a.mp3"))
+            .unwrap()
+            .write_all(b"x")
+            .unwrap();
+        std::fs::File::create(dir.join("b.flac"))
+            .unwrap()
+            .write_all(b"x")
+            .unwrap();
+        std::fs::File::create(dir.join("sub/c.wav"))
+            .unwrap()
+            .write_all(b"x")
+            .unwrap();
+        std::fs::File::create(dir.join("noise.txt"))
+            .unwrap()
+            .write_all(b"x")
+            .unwrap();
 
         let root = dunce::canonicalize(&dir).unwrap();
         let tracks = scan_paths(&[root.clone(), root]);
@@ -365,7 +379,10 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         let p = dir.join("weird.mp3");
-        std::fs::File::create(&p).unwrap().write_all(b"xxxx").unwrap();
+        std::fs::File::create(&p)
+            .unwrap()
+            .write_all(b"xxxx")
+            .unwrap();
         let root = dunce::canonicalize(&dir).unwrap();
         let tracks = scan_paths(&[root]);
         assert_eq!(tracks.len(), 1);
@@ -398,7 +415,9 @@ mod tests {
         handle.join().unwrap();
 
         assert!(matches!(events.first(), Some(ScanEvent::FolderStarted(_))));
-        assert!(events.iter().any(|e| matches!(e, ScanEvent::Progress(_, _))));
+        assert!(events
+            .iter()
+            .any(|e| matches!(e, ScanEvent::Progress(_, _))));
         assert!(matches!(events.last(), Some(ScanEvent::Done(t)) if !t.is_empty()));
 
         let _ = std::fs::remove_dir_all(&dir);

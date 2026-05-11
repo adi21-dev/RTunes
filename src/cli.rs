@@ -12,8 +12,8 @@ use crate::app;
 use crate::audio::{AudioPlayer, RodioBackend};
 use crate::config::{self, RtunesConfig, Theme};
 use crate::fetcher::{
-    FetchEvent, FetchOpts, Fetcher, FetcherPool, MissingTool,
-    PickerEvent, PickerTarget, YtDlpFetcher,
+    FetchEvent, FetchOpts, Fetcher, FetcherPool, MissingTool, PickerEvent, PickerTarget,
+    YtDlpFetcher,
 };
 use crate::library::{scan_config_paths, scan_paths};
 use crate::tui;
@@ -21,7 +21,11 @@ use crate::tui::events::TuiDeps;
 use crate::visualizer;
 
 #[derive(Parser)]
-#[command(name = "rtunes", version, about = "Terminal music player with visualizers")]
+#[command(
+    name = "rtunes",
+    version,
+    about = "Terminal music player with visualizers"
+)]
 pub struct Cli {
     /// Path to config.yaml (overrides default beside the executable / `RTUNES_CONFIG_PATH`).
     #[arg(long, global = true, value_name = "PATH")]
@@ -124,8 +128,8 @@ pub fn resolve_library_roots(paths: &[String]) -> Vec<PathBuf> {
 
 fn validate_dir(path: &Path) -> anyhow::Result<PathBuf> {
     let expanded = crate::utils::expand_path(&path.to_string_lossy());
-    let md = std::fs::metadata(&expanded)
-        .map_err(|e| anyhow::anyhow!("{}: {e}", expanded.display()))?;
+    let md =
+        std::fs::metadata(&expanded).map_err(|e| anyhow::anyhow!("{}: {e}", expanded.display()))?;
     if !md.is_dir() {
         anyhow::bail!("not a directory: {}", expanded.display());
     }
@@ -182,15 +186,9 @@ fn run_tui_session(
     let shared_cfg = Arc::new(Mutex::new(cfg.clone()));
     // Share FetcherSettings so the live YtDlpFetcher picks up path changes immediately.
     let shared_fetcher_settings = Arc::new(Mutex::new(shared_cfg.lock().unwrap().fetcher.clone()));
-    let fetcher_impl: Arc<dyn Fetcher + Send + Sync> = Arc::new(YtDlpFetcher::new(
-        shared_fetcher_settings.clone(),
-    ));
-    let max_c = shared_cfg
-        .lock()
-        .unwrap()
-        .fetcher
-        .max_concurrent
-        .max(1) as usize;
+    let fetcher_impl: Arc<dyn Fetcher + Send + Sync> =
+        Arc::new(YtDlpFetcher::new(shared_fetcher_settings.clone()));
+    let max_c = shared_cfg.lock().unwrap().fetcher.max_concurrent.max(1) as usize;
     let fetch_pool = Arc::new(FetcherPool::new(max_c, fetcher_impl));
     let (fetch_tx, fetch_rx) = crossbeam_channel::unbounded();
     let (picker_tx, picker_rx) = crossbeam_channel::unbounded::<PickerEvent>();
@@ -240,8 +238,11 @@ fn run_tui_session(
     let mut audio_handle = Some(audio_join);
     let mut fft_handle = Some(fft.join);
     loop {
-        let audio_done = audio_handle.as_ref().map(|h| h.is_finished()).unwrap_or(true);
-        let fft_done   = fft_handle.as_ref().map(|h| h.is_finished()).unwrap_or(true);
+        let audio_done = audio_handle
+            .as_ref()
+            .map(|h| h.is_finished())
+            .unwrap_or(true);
+        let fft_done = fft_handle.as_ref().map(|h| h.is_finished()).unwrap_or(true);
         if audio_done && fft_done {
             break;
         }
@@ -252,10 +253,14 @@ fn run_tui_session(
         std::thread::sleep(std::time::Duration::from_millis(50));
     }
     if let Some(h) = audio_handle.take() {
-        if h.is_finished() { let _ = h.join(); }
+        if h.is_finished() {
+            let _ = h.join();
+        }
     }
     if let Some(h) = fft_handle.take() {
-        if h.is_finished() { let _ = h.join(); }
+        if h.is_finished() {
+            let _ = h.join();
+        }
     }
 
     *cfg = shared_cfg.lock().unwrap().clone();
@@ -274,13 +279,7 @@ pub fn dispatch(cli: &Cli, cfg_path: &Path, cfg: &mut RtunesConfig) -> anyhow::R
     }
 
     match &cli.command {
-        None => run_tui_session(
-            cfg_path,
-            cfg,
-            &cli.theme,
-            &cli.fps,
-            cli.fullscreen,
-        )?,
+        None => run_tui_session(cfg_path, cfg, &cli.theme, &cli.fps, cli.fullscreen)?,
         Some(Commands::Tui {
             theme,
             fps,
@@ -289,13 +288,7 @@ pub fn dispatch(cli: &Cli, cfg_path: &Path, cfg: &mut RtunesConfig) -> anyhow::R
             let theme_merged = theme.clone().or_else(|| cli.theme.clone());
             let fps_merged = fps.or(cli.fps);
             let fullscreen_merged = *fullscreen || cli.fullscreen;
-            run_tui_session(
-                cfg_path,
-                cfg,
-                &theme_merged,
-                &fps_merged,
-                fullscreen_merged,
-            )?;
+            run_tui_session(cfg_path, cfg, &theme_merged, &fps_merged, fullscreen_merged)?;
         }
         Some(Commands::Fetch {
             url,
@@ -369,7 +362,7 @@ pub fn dispatch(cli: &Cli, cfg_path: &Path, cfg: &mut RtunesConfig) -> anyhow::R
                     }
                 }
             }
-        },
+        }
         Some(Commands::Scan) => {
             let roots = resolve_library_roots(&cfg.app.library_paths);
             let n = roots.len();

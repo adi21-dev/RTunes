@@ -3,9 +3,9 @@
 use noise::NoiseFn;
 use ratatui::layout::Rect;
 use ratatui::style::Style;
-use ratatui::widgets::Block;
-use ratatui::widgets::canvas::{Canvas, Context, Points};
 use ratatui::symbols::Marker;
+use ratatui::widgets::canvas::{Canvas, Context, Points};
+use ratatui::widgets::Block;
 use ratatui::Frame;
 use std::sync::atomic::{AtomicU32, Ordering};
 
@@ -190,8 +190,7 @@ impl crate::visualizer::Visualizer for Particles {
             if p.active {
                 let xi = p.px.round() as i32;
                 let yi = p.py.round() as i32;
-                self.history
-                    .paint(xi, yi, (p.life * 0.5).clamp(0.0, 1.0));
+                self.history.paint(xi, yi, (p.life * 0.5).clamp(0.0, 1.0));
             }
         }
 
@@ -222,7 +221,8 @@ impl crate::visualizer::Visualizer for Particles {
         self.live_cols.clear();
         for p in self.pool.iter() {
             if p.active {
-                self.live_coords.push((f64::from(p.px) + 0.5, f64::from(p.py) + 0.5));
+                self.live_coords
+                    .push((f64::from(p.px) + 0.5, f64::from(p.py) + 0.5));
                 let c = colors
                     .get(p.hue_idx as usize % colors.len().max(1))
                     .copied()
@@ -297,10 +297,7 @@ mod tests {
         let mut term = Terminal::new(backend).unwrap();
         let area = Rect::new(0, 0, 80, 24);
         let data = VisualizerData::empty(64);
-        let th = theme::builtin_themes()
-            .get("synthwave")
-            .cloned()
-            .unwrap();
+        let th = theme::builtin_themes().get("synthwave").cloned().unwrap();
         let ctx = RendererCtx {
             theme: &th,
             fullscreen: false,
@@ -309,11 +306,10 @@ mod tests {
             viz_intensity: 1.0,
             baseline: false,
         };
-        term
-            .draw(|f| {
-                crate::visualizer::Visualizer::render(&mut p, f, area, Some(&data), 0.5, &ctx);
-            })
-            .unwrap();
+        term.draw(|f| {
+            crate::visualizer::Visualizer::render(&mut p, f, area, Some(&data), 0.5, &ctx);
+        })
+        .unwrap();
     }
 
     #[test]
@@ -333,11 +329,10 @@ mod tests {
         let backend = TestBackend::new(80, 24);
         let mut term = Terminal::new(backend).unwrap();
         for _ in 0..6 {
-            term
-                .draw(|f| {
-                    crate::visualizer::Visualizer::render(&mut p, f, area, Some(&data), 0.5, &ctx);
-                })
-                .unwrap();
+            term.draw(|f| {
+                crate::visualizer::Visualizer::render(&mut p, f, area, Some(&data), 0.5, &ctx);
+            })
+            .unwrap();
         }
         let c0 = p.pool.capacity();
         term.draw(|f| {

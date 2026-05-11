@@ -272,10 +272,12 @@ impl AppState {
             })
             .collect();
 
-        let mut player = PlayerState::default();
-        player.volume = config.app.volume.clamp(0.0, 1.0);
-        player.shuffle = config.app.shuffle;
-        player.repeat = RepeatMode::from_config_str(&config.app.repeat);
+        let player = PlayerState {
+            volume: config.app.volume.clamp(0.0, 1.0),
+            shuffle: config.app.shuffle,
+            repeat: RepeatMode::from_config_str(&config.app.repeat),
+            ..Default::default()
+        };
 
         Self {
             library: Vec::new(),

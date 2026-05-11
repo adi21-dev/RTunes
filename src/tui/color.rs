@@ -6,11 +6,7 @@ use ratatui::style::Color;
 pub fn parse_hex(s: &str) -> Color {
     let s = s.trim();
     let hex = s.strip_prefix('#').unwrap_or(s);
-    let hex = if hex.len() >= 8 {
-        &hex[..6]
-    } else {
-        hex
-    };
+    let hex = if hex.len() >= 8 { &hex[..6] } else { hex };
     if hex.len() != 6 {
         tracing::warn!(value = %s, "invalid hex color");
         return Color::Reset;
@@ -40,12 +36,14 @@ pub fn lerp_color(a: Color, b: Color, t: f32) -> Color {
     let (Color::Rgb(ar, ag, ab), Color::Rgb(br, bg, bb)) = (a, b) else {
         return if t < 0.5 { a } else { b };
     };
-    let lerp = |x: u8, y: u8| -> u8 { (f32::from(x) + (f32::from(y) - f32::from(x)) * t).round() as u8 };
+    let lerp =
+        |x: u8, y: u8| -> u8 { (f32::from(x) + (f32::from(y) - f32::from(x)) * t).round() as u8 };
     Color::Rgb(lerp(ar, br), lerp(ag, bg), lerp(ab, bb))
 }
 
 /// Map `t ∈ [0,1]` across `stops` (at least one); piecewise linear in RGB space.
-pub fn gradient_at(stops: &[String], t: f32) -> Color {    if stops.is_empty() {
+pub fn gradient_at(stops: &[String], t: f32) -> Color {
+    if stops.is_empty() {
         return Color::Reset;
     }
     if stops.len() == 1 {

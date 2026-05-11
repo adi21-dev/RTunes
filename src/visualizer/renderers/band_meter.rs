@@ -15,8 +15,8 @@ use super::spectrum::ROUND_TOP;
 const PEAK_DECAY: f32 = 0.96;
 
 /// EMA time constants in seconds for dt-based smoothing.
-const TAU_ATTACK: f32 = 0.012;   // fast rise  (~12 ms)
-const TAU_RELEASE: f32 = 0.080;  // slow fall  (~80 ms)
+const TAU_ATTACK: f32 = 0.012; // fast rise  (~12 ms)
+const TAU_RELEASE: f32 = 0.080; // slow fall  (~80 ms)
 
 pub struct BandMeter {
     ema: [f32; 3],
@@ -62,10 +62,7 @@ impl crate::visualizer::Visualizer for BandMeter {
             self.ema = [0.0; 3];
             self.peak = [0.0; 3];
             self.auto_gain.reset();
-            f.render_widget(
-                Paragraph::new("").style(Style::default().bg(bg)),
-                area,
-            );
+            f.render_widget(Paragraph::new("").style(Style::default().bg(bg)), area);
             crate::visualizer::maybe_draw_viz_baseline(f, area, rctx);
             return;
         }
@@ -79,9 +76,13 @@ impl crate::visualizer::Visualizer for BandMeter {
         // Use dt-based EMA so band motion is frame-rate-independent.
         // `fft_period` is the inter-FFT interval; lerp the remaining sub-frame via `t`.
         let dt = d.fft_period.as_secs_f32();
-        for i in 0..3 {
-            let target = (bands[i] * g).min(1.0);
-            let tau = if target > self.ema[i] { TAU_ATTACK } else { TAU_RELEASE };
+        for (i, &band) in bands.iter().enumerate() {
+            let target = (band * g).min(1.0);
+            let tau = if target > self.ema[i] {
+                TAU_ATTACK
+            } else {
+                TAU_RELEASE
+            };
             let smoothed = ema_dt(self.ema[i], target, tau, dt);
             // Sub-frame interpolation: blend the previous EMA toward the new EMA value.
             self.ema[i] = smoothed.clamp(0.0, 1.0);
@@ -120,10 +121,7 @@ impl crate::visualizer::Visualizer for BandMeter {
             let crect = cols[col];
             let chunks = Layout::default()
                 .direction(Direction::Vertical)
-                .constraints([
-                    Constraint::Length(meter_h),
-                    Constraint::Length(label_h),
-                ])
+                .constraints([Constraint::Length(meter_h), Constraint::Length(label_h)])
                 .split(crect);
             let meter_rect = chunks[0];
             let label_rect = chunks[1];
@@ -222,8 +220,7 @@ mod tests {
         let area = Rect::new(0, 0, 60, 18);
         let data = VisualizerData::empty(64);
         let th = theme::builtin_themes().get("synthwave").cloned().unwrap();
-        term
-            .draw(|f| Visualizer::render(&mut b, f, area, Some(&data), 0.0, &ctx(&th)))
+        term.draw(|f| Visualizer::render(&mut b, f, area, Some(&data), 0.0, &ctx(&th)))
             .unwrap();
     }
 
@@ -239,8 +236,7 @@ mod tests {
         d.bass_energy = 1.0;
         d.mid_energy = 0.0;
         d.high_energy = 0.0;
-        term
-            .draw(|f| Visualizer::render(&mut b, f, area, Some(&d), 0.0, &ctx(&th)))
+        term.draw(|f| Visualizer::render(&mut b, f, area, Some(&d), 0.0, &ctx(&th)))
             .unwrap();
         let buf = term.backend().buffer();
         let label_h = 1u16;
@@ -281,8 +277,7 @@ mod tests {
         d.mid_energy = 0.15;
         d.high_energy = 0.15;
         for _ in 0..24 {
-            term
-                .draw(|f| Visualizer::render(&mut b, f, area, Some(&d), 0.0, &ctx(&th)))
+            term.draw(|f| Visualizer::render(&mut b, f, area, Some(&d), 0.0, &ctx(&th)))
                 .unwrap();
         }
         let buf = term.backend().buffer();
@@ -291,7 +286,12 @@ mod tests {
         let col_w = (area.width / 3) as usize;
         let half = meter_h / 2;
 
-        fn col_fill_depth(buf: &ratatui::buffer::Buffer, x0: u16, x1: u16, meter_h: usize) -> usize {
+        fn col_fill_depth(
+            buf: &ratatui::buffer::Buffer,
+            x0: u16,
+            x1: u16,
+            meter_h: usize,
+        ) -> usize {
             let mut max_from_bottom = 0usize;
             for y in 0..meter_h {
                 let from_bottom = meter_h - 1 - y;

@@ -35,8 +35,7 @@ fn draw_frame_smoke_two_sizes_no_panic() {
     let snap = build_snapshot(&state, &theme_arc, 8, 1.0, 1.0);
     let backend = TestBackend::new(80, 24);
     let mut term = Terminal::new(backend).unwrap();
-    term
-        .draw(|f| draw_frame(f, &snap, None, 1.0, &mut viz, &mut scratch))
+    term.draw(|f| draw_frame(f, &snap, None, 1.0, &mut viz, &mut scratch))
         .unwrap();
 
     let snap2 = build_snapshot(&state, &theme_arc, 8, 1.0, 1.0);
@@ -86,8 +85,7 @@ fn redesigned_draw_normal_transport_only_fullscreen_no_panic() {
         let snap = build_snapshot(&state, &theme_arc, 6, 1.0, 1.0);
         let backend = TestBackend::new(80, 24);
         let mut term = Terminal::new(backend).unwrap();
-        term
-            .draw(|f| draw_frame(f, &snap, None, 1.0, &mut viz, &mut scratch))
+        term.draw(|f| draw_frame(f, &snap, None, 1.0, &mut viz, &mut scratch))
             .unwrap();
 
         if panel_focus == PanelFocus::Normal && !is_fullscreen {
@@ -135,10 +133,7 @@ fn redesigned_draw_normal_transport_only_fullscreen_no_panic() {
         }
     }
 
-    for mode in [
-        VisualizerMode::PulseRings,
-        VisualizerMode::BandMeter,
-    ] {
+    for mode in [VisualizerMode::PulseRings, VisualizerMode::BandMeter] {
         {
             let mut g = state.lock().unwrap();
             g.panel_focus = PanelFocus::Normal;
@@ -149,8 +144,7 @@ fn redesigned_draw_normal_transport_only_fullscreen_no_panic() {
         let backend = TestBackend::new(80, 24);
         let mut term = Terminal::new(backend).unwrap();
         let mut r = make_renderer(mode, &rtunes::config::VisualizerSettings::default());
-        term
-            .draw(|f| draw_frame(f, &snap, None, 1.0, &mut *r, &mut scratch))
+        term.draw(|f| draw_frame(f, &snap, None, 1.0, &mut *r, &mut scratch))
             .unwrap();
     }
 }

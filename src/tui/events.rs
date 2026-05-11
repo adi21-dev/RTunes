@@ -18,13 +18,7 @@ use crate::config::{resolve_active_theme, FetcherSettings, RtunesConfig, Theme};
 use crate::fetcher::{validate_url, FetchEvent, FetchOpts, FetcherPool, PickerEvent, PickerTarget};
 use crate::library::{is_scanning, scan_async, ScanEvent};
 
-const BUILTIN_THEME_ORDER: &[&str] = &[
-    "synthwave",
-    "dracula",
-    "nord",
-    "tokyo_night",
-    "monochrome",
-];
+const BUILTIN_THEME_ORDER: &[&str] = &["synthwave", "dracula", "nord", "tokyo_night", "monochrome"];
 
 const VIZ_ORDER: [VisualizerMode; 8] = [
     VisualizerMode::Spectrum,
@@ -304,13 +298,16 @@ pub fn trigger_rescan(state: &Arc<Mutex<AppState>>, config: &Arc<Mutex<RtunesCon
     if is_scanning() {
         let mut g = lock_shared(state);
         g.rescan_pending = true;
-        set_toast(&mut *g, "Rescan already in progress; will rescan when complete.");
+        set_toast(
+            &mut g,
+            "Rescan already in progress; will rescan when complete.",
+        );
         return;
     }
     let roots = resolve_library_roots(&paths);
     if roots.is_empty() {
         let mut g = lock_shared(state);
-        set_toast(&mut *g, "No library folders to scan.");
+        set_toast(&mut g, "No library folders to scan.");
         return;
     }
     let cur_id = {
@@ -322,7 +319,10 @@ pub fn trigger_rescan(state: &Arc<Mutex<AppState>>, config: &Arc<Mutex<RtunesCon
     let (tx, rx) = crossbeam_channel::unbounded();
     let Some(scan_handle) = scan_async(roots, tx) else {
         let mut g = lock_shared(state);
-        set_toast(&mut *g, "Rescan already in progress; will rescan when complete.");
+        set_toast(
+            &mut *g,
+            "Rescan already in progress; will rescan when complete.",
+        );
         return;
     };
     {
@@ -338,7 +338,8 @@ pub fn trigger_rescan(state: &Arc<Mutex<AppState>>, config: &Arc<Mutex<RtunesCon
                 g.library = tracks;
                 recompute_folder_counts(&mut g);
                 if let Some(id) = cur_id {
-                    if let Some((new_idx, _)) = g.library.iter().enumerate().find(|(_, t)| t.id == id)
+                    if let Some((new_idx, _)) =
+                        g.library.iter().enumerate().find(|(_, t)| t.id == id)
                     {
                         g.player.current_index = Some(new_idx);
                     } else {
@@ -346,7 +347,10 @@ pub fn trigger_rescan(state: &Arc<Mutex<AppState>>, config: &Arc<Mutex<RtunesCon
                     }
                 }
                 g.is_rescanning = false;
-                g.message = Some((format!("Rescan complete. Found {n} tracks."), Instant::now()));
+                g.message = Some((
+                    format!("Rescan complete. Found {n} tracks."),
+                    Instant::now(),
+                ));
                 break;
             }
         }
@@ -355,11 +359,7 @@ pub fn trigger_rescan(state: &Arc<Mutex<AppState>>, config: &Arc<Mutex<RtunesCon
 }
 
 /// Handle a completed picker result: persist to config and update app state.
-pub fn handle_picker_event(
-    state: &Arc<Mutex<AppState>>,
-    deps: &TuiDeps,
-    ev: PickerEvent,
-) {
+pub fn handle_picker_event(state: &Arc<Mutex<AppState>>, deps: &TuiDeps, ev: PickerEvent) {
     let PickerEvent { target, path } = ev;
     let Some(path) = path else {
         // User cancelled the dialog — no-op.
@@ -497,7 +497,8 @@ fn handle_remove_folder(
     let removed = {
         let mut c = lock_shared(&deps.config);
         let before = c.app.library_paths.len();
-        c.app.library_paths
+        c.app
+            .library_paths
             .retain(|s| canonical_for_config_entry(s).as_ref() != Some(&target));
         c.app.library_paths.len() < before
     };
@@ -562,7 +563,9 @@ fn dispatch_key(
     let mode = app.input_mode;
 
     // Global quit
-    if matches!(mode, InputMode::Normal) && matches!(code, KeyCode::Char('q')) && !mods.contains(KeyModifiers::CONTROL)
+    if matches!(mode, InputMode::Normal)
+        && matches!(code, KeyCode::Char('q'))
+        && !mods.contains(KeyModifiers::CONTROL)
     {
         app.quit = true;
         return Ok(());
@@ -642,8 +645,8 @@ fn dispatch_key(
                     SettingsRow::DownloadDir => PickerTarget::DownloadDir,
                 };
                 // DownloadDir always opens a directory picker.
-                let open_dir = matches!(code, KeyCode::Char('d'))
-                    || matches!(row, SettingsRow::DownloadDir);
+                let open_dir =
+                    matches!(code, KeyCode::Char('d')) || matches!(row, SettingsRow::DownloadDir);
                 let current_val = match row {
                     SettingsRow::YtDlp => app.settings_ytdlp_value.clone(),
                     SettingsRow::Ffmpeg => app.settings_ffmpeg_value.clone(),
@@ -856,22 +859,22 @@ fn dispatch_key(
                     });
                     return Ok(());
                 }
-                KeyCode::Char('M') if shift => {
-                    if app.visualizer_mode == VisualizerMode::Spectrogram {
-                        app.spectrogram_mode = match app.spectrogram_mode {
-                            SpectrogramMode::Standard => SpectrogramMode::Inverted,
-                            SpectrogramMode::Inverted => SpectrogramMode::Mirrored,
-                            SpectrogramMode::Mirrored => SpectrogramMode::Standard,
-                        };
-                        let m = app.spectrogram_mode;
-                        set_toast(&mut app, format!("Spectrogram: {:?}", m));
-                        let spec_str = m.as_config_str().to_string();
-                        drop(app);
-                        persist_cfg(deps, |c| {
-                            c.app.spectrogram_mode = spec_str;
-                        });
-                        return Ok(());
-                    }
+                KeyCode::Char('M')
+                    if shift && app.visualizer_mode == VisualizerMode::Spectrogram =>
+                {
+                    app.spectrogram_mode = match app.spectrogram_mode {
+                        SpectrogramMode::Standard => SpectrogramMode::Inverted,
+                        SpectrogramMode::Inverted => SpectrogramMode::Mirrored,
+                        SpectrogramMode::Mirrored => SpectrogramMode::Standard,
+                    };
+                    let m = app.spectrogram_mode;
+                    set_toast(&mut app, format!("Spectrogram: {:?}", m));
+                    let spec_str = m.as_config_str().to_string();
+                    drop(app);
+                    persist_cfg(deps, |c| {
+                        c.app.spectrogram_mode = spec_str;
+                    });
+                    return Ok(());
                 }
                 KeyCode::Char('m') => {
                     app.player.muted = !app.player.muted;
@@ -1015,11 +1018,8 @@ mod tests {
         let (tx, _rx) = crossbeam_channel::unbounded();
         let (picker_tx, _picker_rx) = crossbeam_channel::unbounded();
         let n = TEST_CFG_COUNTER.fetch_add(1, Ordering::Relaxed);
-        let config_path = std::env::temp_dir().join(format!(
-            "rtunes-tui-{}-{}.yaml",
-            std::process::id(),
-            n
-        ));
+        let config_path =
+            std::env::temp_dir().join(format!("rtunes-tui-{}-{}.yaml", std::process::id(), n));
         let fetcher_settings = Arc::new(Mutex::new(cfg.fetcher.clone()));
         TuiDeps {
             config: Arc::new(Mutex::new(cfg)),
@@ -1147,35 +1147,14 @@ mod tests {
         assert!(!lock_shared(&app).is_fullscreen);
 
         let tab = Event::Key(KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE));
-        handle_event(
-            &app,
-            &theme_arc,
-            cfg.theme.custom.as_ref(),
-            &deps,
-            &tab,
-        )
-        .unwrap();
+        handle_event(&app, &theme_arc, cfg.theme.custom.as_ref(), &deps, &tab).unwrap();
         assert_eq!(lock_shared(&app).panel_focus, PanelFocus::TransportOnly);
         assert!(!lock_shared(&app).is_fullscreen);
 
-        handle_event(
-            &app,
-            &theme_arc,
-            cfg.theme.custom.as_ref(),
-            &deps,
-            &tab,
-        )
-        .unwrap();
+        handle_event(&app, &theme_arc, cfg.theme.custom.as_ref(), &deps, &tab).unwrap();
         assert!(lock_shared(&app).is_fullscreen);
 
-        handle_event(
-            &app,
-            &theme_arc,
-            cfg.theme.custom.as_ref(),
-            &deps,
-            &tab,
-        )
-        .unwrap();
+        handle_event(&app, &theme_arc, cfg.theme.custom.as_ref(), &deps, &tab).unwrap();
         let g = lock_shared(&app);
         assert_eq!(g.panel_focus, PanelFocus::Normal);
         assert!(!g.is_fullscreen);
@@ -1207,14 +1186,7 @@ mod tests {
         let app = Arc::new(Mutex::new(AppState::new(&cfg, theme)));
         let theme_arc = Arc::new(Mutex::new(resolve_active_theme("synthwave", None)));
         let ev = Event::Key(key_char('t'));
-        handle_event(
-            &app,
-            &theme_arc,
-            cfg.theme.custom.as_ref(),
-            &deps,
-            &ev,
-        )
-        .unwrap();
+        handle_event(&app, &theme_arc, cfg.theme.custom.as_ref(), &deps, &ev).unwrap();
         let loaded = crate::config::load_or_create(&deps.config_path).unwrap();
         assert_eq!(loaded.theme.active, "dracula");
     }
@@ -1228,14 +1200,7 @@ mod tests {
         let app = Arc::new(Mutex::new(AppState::new(&cfg, theme)));
         let theme_arc = Arc::new(Mutex::new(resolve_active_theme("synthwave", None)));
         let ev = Event::Key(key_char('s'));
-        handle_event(
-            &app,
-            &theme_arc,
-            cfg.theme.custom.as_ref(),
-            &deps,
-            &ev,
-        )
-        .unwrap();
+        handle_event(&app, &theme_arc, cfg.theme.custom.as_ref(), &deps, &ev).unwrap();
         let loaded = crate::config::load_or_create(&deps.config_path).unwrap();
         assert!(loaded.app.shuffle);
     }
@@ -1249,14 +1214,7 @@ mod tests {
         let app = Arc::new(Mutex::new(AppState::new(&cfg, theme)));
         let theme_arc = Arc::new(Mutex::new(resolve_active_theme("synthwave", None)));
         let ev = Event::Key(key_char('v'));
-        handle_event(
-            &app,
-            &theme_arc,
-            cfg.theme.custom.as_ref(),
-            &deps,
-            &ev,
-        )
-        .unwrap();
+        handle_event(&app, &theme_arc, cfg.theme.custom.as_ref(), &deps, &ev).unwrap();
         let loaded = crate::config::load_or_create(&deps.config_path).unwrap();
         assert_eq!(loaded.app.default_visualizer, "spectrogram");
     }
@@ -1272,14 +1230,7 @@ mod tests {
         let app = Arc::new(Mutex::new(st));
         let theme_arc = Arc::new(Mutex::new(resolve_active_theme("synthwave", None)));
         let ev = Event::Key(KeyEvent::new(KeyCode::Char('+'), KeyModifiers::NONE));
-        handle_event(
-            &app,
-            &theme_arc,
-            cfg.theme.custom.as_ref(),
-            &deps,
-            &ev,
-        )
-        .unwrap();
+        handle_event(&app, &theme_arc, cfg.theme.custom.as_ref(), &deps, &ev).unwrap();
         let loaded = crate::config::load_or_create(&deps.config_path).unwrap();
         assert!((loaded.app.volume - 0.55).abs() < 1e-5);
     }
@@ -1295,14 +1246,7 @@ mod tests {
         let app = Arc::new(Mutex::new(st));
         let theme_arc = Arc::new(Mutex::new(resolve_active_theme("synthwave", None)));
         let ev = Event::Key(KeyEvent::new(KeyCode::Char('M'), KeyModifiers::SHIFT));
-        handle_event(
-            &app,
-            &theme_arc,
-            cfg.theme.custom.as_ref(),
-            &deps,
-            &ev,
-        )
-        .unwrap();
+        handle_event(&app, &theme_arc, cfg.theme.custom.as_ref(), &deps, &ev).unwrap();
         let loaded = crate::config::load_or_create(&deps.config_path).unwrap();
         assert_eq!(loaded.app.spectrogram_mode, "inverted");
     }
@@ -1316,14 +1260,7 @@ mod tests {
         let app = Arc::new(Mutex::new(AppState::new(&cfg, theme)));
         let theme_arc = Arc::new(Mutex::new(resolve_active_theme("synthwave", None)));
         let ev = Event::Key(key_char('g'));
-        handle_event(
-            &app,
-            &theme_arc,
-            cfg.theme.custom.as_ref(),
-            &deps,
-            &ev,
-        )
-        .unwrap();
+        handle_event(&app, &theme_arc, cfg.theme.custom.as_ref(), &deps, &ev).unwrap();
         let loaded = crate::config::load_or_create(&deps.config_path).unwrap();
         assert!(!loaded.app.neon);
     }

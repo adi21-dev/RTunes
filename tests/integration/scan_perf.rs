@@ -25,11 +25,7 @@ fn scan_1000_stub_mp3_completes_within_budget() {
 
     assert_eq!(tracks.len(), 1000, "expected every stub indexed");
 
-    let budget_ms: u64 = if cfg!(debug_assertions) {
-        8_000
-    } else {
-        2_000
-    };
+    let budget_ms: u64 = if cfg!(debug_assertions) { 8_000 } else { 2_000 };
     assert!(
         ms < budget_ms,
         "scan took {ms}ms (budget {budget_ms}ms); regression in scanner hot path?"

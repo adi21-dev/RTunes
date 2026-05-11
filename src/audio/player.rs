@@ -9,10 +9,10 @@ use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use crossbeam_channel::bounded;
 use crossbeam_queue::ArrayQueue;
 use lofty::file::AudioFile;
 use lofty::probe::Probe;
-use crossbeam_channel::bounded;
 use rodio::{Decoder, OutputStream, Sink, Source};
 
 use crate::app::lock_shared;
@@ -185,11 +185,7 @@ impl RodioBackend {
                     path.display()
                 ))
             })?;
-            Box::new(
-                decoder2
-                    .convert_samples::<f32>()
-                    .skip_duration(position),
-            )
+            Box::new(decoder2.convert_samples::<f32>().skip_duration(position))
         };
         Ok((src, sample_rate, channels))
     }
@@ -212,11 +208,7 @@ impl RodioBackend {
 
         let tapped = TapSource::new(src, self.ring.clone(), self.samples_played.clone());
         sink.append(tapped);
-        sink.set_volume(if self.muted {
-            0.0
-        } else {
-            self.volume
-        });
+        sink.set_volume(if self.muted { 0.0 } else { self.volume });
         sink.play();
         self.current_path = Some(path.to_path_buf());
         self.resync_samples_from_logical_position(position);
@@ -284,7 +276,8 @@ impl AudioBackend for RodioBackend {
     }
 
     fn position(&self) -> Duration {
-        let pos = self.sink
+        let pos = self
+            .sink
             .as_ref()
             .map(|s| {
                 let p = s.get_pos();
@@ -334,7 +327,10 @@ impl AudioBackend for RodioBackend {
             None => return false,
         };
         let resume_pos = self.last_position.get();
-        tracing::warn!("Audio stream lost — attempting reconnect at {:?}", resume_pos);
+        tracing::warn!(
+            "Audio stream lost — attempting reconnect at {:?}",
+            resume_pos
+        );
         match OutputStream::try_default() {
             Ok((new_stream, handle)) => match Sink::try_new(&handle) {
                 Ok(new_sink) => {
@@ -377,7 +373,11 @@ pub struct AudioPlayer<B: AudioBackend> {
 }
 
 impl<B: AudioBackend> AudioPlayer<B> {
-    pub fn with_backend(backend: B, state: Arc<Mutex<AppState>>, sample_rate_hz: Arc<AtomicU32>) -> Self {
+    pub fn with_backend(
+        backend: B,
+        state: Arc<Mutex<AppState>>,
+        sample_rate_hz: Arc<AtomicU32>,
+    ) -> Self {
         Self {
             backend,
             state,
@@ -412,10 +412,7 @@ impl<B: AudioBackend> AudioPlayer<B> {
             let mut player = AudioPlayer::with_backend(backend, state, sr_th);
             player.run();
         });
-        let silent = match rx.recv_timeout(Duration::from_secs(2)) {
-            Ok(s) => s,
-            Err(_) => true,
-        };
+        let silent = rx.recv_timeout(Duration::from_secs(2)).unwrap_or(true);
         (handle, ring, samples, sample_rate_hz, silent)
     }
 
@@ -498,10 +495,8 @@ impl<B: AudioBackend> AudioPlayer<B> {
                     }
                     if self.backend.play(&path).is_ok() {
                         self.loaded_index = Some(ci);
-                        self.sample_rate_hz.store(
-                            self.backend.current_sample_rate().max(1),
-                            Ordering::Relaxed,
-                        );
+                        self.sample_rate_hz
+                            .store(self.backend.current_sample_rate().max(1), Ordering::Relaxed);
                         let dur = self
                             .backend
                             .duration()
@@ -543,12 +538,14 @@ impl<B: AudioBackend> AudioPlayer<B> {
             // Distinguish natural track end from stream failure (e.g. device change).
             // If we're more than 2 seconds before the expected end, it's likely a broken
             // stream rather than normal completion — attempt to reconnect first.
-            let dur = self.backend.duration().map(|d| d.as_secs_f64()).unwrap_or(0.0);
-            if dur > 0.0 && pos_secs < dur - 2.0 {
-                if self.backend.reconnect() {
-                    // Successfully reconnected — resume playing, skip auto-advance.
-                    return false;
-                }
+            let dur = self
+                .backend
+                .duration()
+                .map(|d| d.as_secs_f64())
+                .unwrap_or(0.0);
+            if dur > 0.0 && pos_secs < dur - 2.0 && self.backend.reconnect() {
+                // Successfully reconnected — resume playing, skip auto-advance.
+                return false;
             }
             let cur = current_index.unwrap_or(0);
             match repeat {
@@ -577,9 +574,7 @@ impl<B: AudioBackend> AudioPlayer<B> {
                             let mut g = lock_shared(&self.state);
                             g.player.is_playing = false;
                         }
-                        (RepeatMode::All, Some(next))
-                            if next == cur && lib_len == 1 =>
-                        {
+                        (RepeatMode::All, Some(next)) if next == cur && lib_len == 1 => {
                             let _ = self.backend.seek(Duration::ZERO);
                             let pos = self.backend.position().as_secs_f64();
                             let mut g = lock_shared(&self.state);

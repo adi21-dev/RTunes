@@ -23,12 +23,7 @@ impl TerminalGuard {
     pub fn new() -> io::Result<Self> {
         enable_raw_mode()?;
         let mut out = stdout();
-        execute!(
-            out,
-            EnterAlternateScreen,
-            EnableMouseCapture,
-            Hide,
-        )?;
+        execute!(out, EnterAlternateScreen, EnableMouseCapture, Hide,)?;
         let backend = CrosstermBackend::new(out);
         let inner = Terminal::new(backend)?;
         Ok(Self {
@@ -37,7 +32,7 @@ impl TerminalGuard {
     }
 
     pub fn terminal(&mut self) -> &mut TuiTerminal {
-        &mut *self.inner
+        &mut self.inner
     }
 
     /// Releases raw mode and alternate screen, then returns the underlying terminal.

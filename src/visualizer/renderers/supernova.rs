@@ -4,9 +4,9 @@ use std::time::Instant;
 
 use ratatui::layout::Rect;
 use ratatui::style::Style;
-use ratatui::widgets::Block;
-use ratatui::widgets::canvas::{Canvas, Context, Line, Points};
 use ratatui::symbols::Marker;
+use ratatui::widgets::canvas::{Canvas, Context, Line, Points};
+use ratatui::widgets::Block;
 use ratatui::Frame;
 
 use crate::tui::color::{dim_with_intensity, parse_hex};
@@ -54,6 +54,12 @@ pub struct Supernova {
     glow_src: Vec<(f64, f64)>,
     /// Scratch buffer for zero-alloc spectral smoothing (reused each frame).
     smooth_scratch: Vec<f32>,
+}
+
+impl Default for Supernova {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Supernova {
@@ -235,11 +241,10 @@ mod tests {
             viz_intensity: 1.0,
             baseline: false,
         };
-        term
-            .draw(|f| {
-                crate::visualizer::Visualizer::render(&mut sn, f, area, Some(&data), 0.5, &ctx);
-            })
-            .unwrap();
+        term.draw(|f| {
+            crate::visualizer::Visualizer::render(&mut sn, f, area, Some(&data), 0.5, &ctx);
+        })
+        .unwrap();
     }
 
     #[test]

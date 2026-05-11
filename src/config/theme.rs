@@ -214,11 +214,7 @@ pub fn builtin_themes() -> HashMap<String, Theme> {
 
 /// Normalize a theme name or id for lookup (`"Tokyo Night"` → `"tokyo_night"`).
 pub fn normalize_theme_key(active: &str) -> String {
-    active
-        .trim()
-        .to_lowercase()
-        .replace(' ', "_")
-        .replace('-', "_")
+    active.trim().to_lowercase().replace([' ', '-'], "_")
 }
 
 /// Resolve `active` against optional `custom` themes, then builtins. Unknown → Synthwave + warn.
@@ -252,7 +248,10 @@ mod tests {
         assert_eq!(resolve_active_theme("synthwave", None).name, "Synthwave");
         assert_eq!(resolve_active_theme("dracula", None).name, "Dracula");
         assert_eq!(resolve_active_theme("nord", None).name, "Nord");
-        assert_eq!(resolve_active_theme("tokyo_night", None).name, "Tokyo Night");
+        assert_eq!(
+            resolve_active_theme("tokyo_night", None).name,
+            "Tokyo Night"
+        );
         assert_eq!(resolve_active_theme("monochrome", None).name, "Monochrome");
     }
 

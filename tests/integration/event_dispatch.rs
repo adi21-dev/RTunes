@@ -115,7 +115,10 @@ fn search_slash_type_enter_filters() {
         &Event::Key(KeyEvent::new(KeyCode::Char('/'), KeyModifiers::NONE)),
     )
     .unwrap();
-    assert_eq!(app.lock().unwrap().input_mode, rtunes::app::state::InputMode::Search);
+    assert_eq!(
+        app.lock().unwrap().input_mode,
+        rtunes::app::state::InputMode::Search
+    );
 
     for ch in "Zebra".chars() {
         handle_event(

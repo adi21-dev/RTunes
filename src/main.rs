@@ -45,7 +45,8 @@ fn main() -> anyhow::Result<()> {
 
     let _log_guard = init_tracing(cli.log_level.as_deref());
 
-    let mut rtunes_cfg = rtunes::config::load_or_create(&cfg_path).map_err(|e| anyhow::anyhow!(e))?;
+    let mut rtunes_cfg =
+        rtunes::config::load_or_create(&cfg_path).map_err(|e| anyhow::anyhow!(e))?;
 
     tracing::info!(path = %cfg_path.display(), "config loaded");
     rtunes::cli::dispatch(&cli, &cfg_path, &mut rtunes_cfg)

@@ -88,8 +88,7 @@ fn build_file_dialog(target: PickerTarget, suggested_dir: Option<&Path>) -> rfd:
 
 fn build_dir_dialog(target: PickerTarget, suggested_dir: Option<&Path>) -> rfd::FileDialog {
     let label = label_for(target);
-    let mut d = rfd::FileDialog::new()
-        .set_title(format!("Select folder containing {label}"));
+    let mut d = rfd::FileDialog::new().set_title(format!("Select folder containing {label}"));
     if let Some(dir) = suggested_dir {
         d = d.set_directory(dir);
     }

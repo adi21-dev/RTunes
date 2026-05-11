@@ -21,11 +21,11 @@ use crate::config::{RtunesConfig, Theme};
 use crate::fetcher::FetchEvent;
 use crate::tui::color::{gradient_at, lerp_color, parse_hex};
 use crate::tui::events::{handle_event, trigger_rescan, TuiDeps};
-use crate::utils::expand_path;
-use crate::visualizer::RendererCtx;
 use crate::tui::terminal::TerminalGuard;
+use crate::utils::expand_path;
 use crate::visualizer::renderers::make_renderer;
 use crate::visualizer::smoothing;
+use crate::visualizer::RendererCtx;
 use crate::visualizer::{Visualizer, VisualizerData};
 
 /// Reused `Vec` capacity for progress rows and library list (hot render path).
@@ -33,6 +33,12 @@ pub struct RenderScratch {
     progress_spans: Vec<Span<'static>>,
     controls_spans: Vec<Span<'static>>,
     library_items: Vec<ListItem<'static>>,
+}
+
+impl Default for RenderScratch {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl RenderScratch {
@@ -159,36 +165,48 @@ pub fn build_snapshot(
     let g = lock_shared(state);
 
     // Scalar (Copy) fields first — no heap allocation.
-    let snap_is_fullscreen   = g.is_fullscreen;
-    let snap_panel_focus     = g.panel_focus;
-    let snap_input_mode      = g.input_mode;
-    let snap_show_help       = g.show_help;
+    let snap_is_fullscreen = g.is_fullscreen;
+    let snap_panel_focus = g.panel_focus;
+    let snap_input_mode = g.input_mode;
+    let snap_show_help = g.show_help;
     let snap_show_library_manager = g.show_library_manager;
     let snap_selected_folder = g.selected_folder;
     let snap_visualizer_mode = g.visualizer_mode;
-    let snap_neon_enabled    = g.neon_enabled;
+    let snap_neon_enabled = g.neon_enabled;
     let snap_spectrogram_mode = g.spectrogram_mode;
-    let snap_player_pos      = g.player.position_secs;
-    let snap_player_dur      = g.player.duration_secs;
-    let snap_volume          = g.player.volume;
-    let snap_muted           = g.player.muted;
-    let snap_shuffle         = g.player.shuffle;
-    let snap_repeat          = g.player.repeat;
-    let snap_is_playing      = g.player.is_playing;
+    let snap_player_pos = g.player.position_secs;
+    let snap_player_dur = g.player.duration_secs;
+    let snap_volume = g.player.volume;
+    let snap_muted = g.player.muted;
+    let snap_shuffle = g.player.shuffle;
+    let snap_repeat = g.player.repeat;
+    let snap_is_playing = g.player.is_playing;
     let snap_download_progress = g.download_progress;
-    let show_settings        = g.show_settings;
-    let settings_row         = g.settings_row;
-    let library_track_count  = g.library.len();
-    let playing_lib_idx      = g.player.current_index;
+    let show_settings = g.show_settings;
+    let settings_row = g.settings_row;
+    let library_track_count = g.library.len();
+    let playing_lib_idx = g.player.current_index;
 
     // Heap-allocated fields (unavoidable clones).
-    let snap_input_buffer    = g.input_buffer.clone();
-    let snap_download_stage  = g.download_stage.clone();
+    let snap_input_buffer = g.input_buffer.clone();
+    let snap_download_stage = g.download_stage.clone();
     let toast = g.message.as_ref().map(|(s, _)| s.clone());
     // Settings strings — only clone when the overlay is actually visible.
-    let settings_ytdlp_value  = if show_settings { g.settings_ytdlp_value.clone() } else { String::new() };
-    let settings_ffmpeg_value = if show_settings { g.settings_ffmpeg_value.clone() } else { String::new() };
-    let settings_download_dir = if show_settings { g.settings_download_dir.clone() } else { String::new() };
+    let settings_ytdlp_value = if show_settings {
+        g.settings_ytdlp_value.clone()
+    } else {
+        String::new()
+    };
+    let settings_ffmpeg_value = if show_settings {
+        g.settings_ffmpeg_value.clone()
+    } else {
+        String::new()
+    };
+    let settings_download_dir = if show_settings {
+        g.settings_download_dir.clone()
+    } else {
+        String::new()
+    };
 
     // Library folders — only clone when the manager is open (rarely visible).
     let snap_library_folders = if snap_show_library_manager || snap_show_help {
@@ -203,10 +221,10 @@ pub fn build_snapshot(
     } else {
         g.filtered_indices.len()
     };
-    let sel   = g.selected_track.min(total.saturating_sub(1));
+    let sel = g.selected_track.min(total.saturating_sub(1));
     let view_h = library_view_height.max(1);
     let start = sel.saturating_sub(view_h.saturating_sub(1));
-    let end   = (start + view_h).min(total);
+    let end = (start + view_h).min(total);
 
     let mut library_rows = Vec::with_capacity(end.saturating_sub(start));
     for row in start..end {
@@ -229,15 +247,14 @@ pub fn build_snapshot(
     }
 
     // Now-playing strings: built from library entry directly under the lock.
-    let (np_left, transport_album_line) =
-        match playing_lib_idx.and_then(|i| g.library.get(i)) {
-            Some(t) => {
-                let artist = t.artist.as_deref().unwrap_or("Unknown");
-                let album  = t.album.as_deref().filter(|s| !s.is_empty()).unwrap_or("—");
-                (format!("♪ {} — {}", t.title, artist), album.to_string())
-            }
-            None => ("— nothing playing —".into(), "—".into()),
-        };
+    let (np_left, transport_album_line) = match playing_lib_idx.and_then(|i| g.library.get(i)) {
+        Some(t) => {
+            let artist = t.artist.as_deref().unwrap_or("Unknown");
+            let album = t.album.as_deref().filter(|s| !s.is_empty()).unwrap_or("—");
+            (format!("♪ {} — {}", t.title, artist), album.to_string())
+        }
+        None => ("— nothing playing —".into(), "—".into()),
+    };
 
     // Release the AppState lock before any filesystem or secondary lock operations.
     drop(g);
@@ -310,10 +327,7 @@ pub fn draw_frame(
 ) {
     let full = f.area();
     let bg = parse_hex(&snap.theme.background);
-    f.render_widget(
-        Block::default().style(Style::default().bg(bg)),
-        full,
-    );
+    f.render_widget(Block::default().style(Style::default().bg(bg)), full);
 
     let glow = effective_glow(&snap.theme, snap.neon_enabled);
     let (viz_intensity, baseline) = if snap.is_fullscreen {
@@ -441,7 +455,10 @@ fn render_status_strip(f: &mut Frame<'_>, area: Rect, snap: &RenderSnapshot) {
     let vol = if snap.muted {
         "MUTED".to_string()
     } else {
-        format!("{}%", (snap.volume * 100.0).round().clamp(0.0, 100.0) as i32)
+        format!(
+            "{}%",
+            (snap.volume * 100.0).round().clamp(0.0, 100.0) as i32
+        )
     };
     let tpos = fmt_duration(snap.player_pos);
     let tdur = fmt_duration(snap.player_dur);
@@ -470,16 +487,40 @@ fn render_status_strip(f: &mut Frame<'_>, area: Rect, snap: &RenderSnapshot) {
     }
     let mut right_items: Vec<RightItem> = Vec::new();
     if snap.neon_enabled {
-        right_items.push(RightItem { text: "NEON".into(), is_accent: true });
+        right_items.push(RightItem {
+            text: "NEON".into(),
+            is_accent: true,
+        });
     }
-    right_items.push(RightItem { text: rep_lbl.to_string(), is_accent: snap.repeat != RepeatMode::Off });
-    right_items.push(RightItem { text: shuf_lbl.to_string(), is_accent: snap.shuffle });
-    right_items.push(RightItem { text: vol.clone(), is_accent: false });
-    right_items.push(RightItem { text: time_str.clone(), is_accent: false });
-    right_items.push(RightItem { text: track_str.clone(), is_accent: false });
+    right_items.push(RightItem {
+        text: rep_lbl.to_string(),
+        is_accent: snap.repeat != RepeatMode::Off,
+    });
+    right_items.push(RightItem {
+        text: shuf_lbl.to_string(),
+        is_accent: snap.shuffle,
+    });
+    right_items.push(RightItem {
+        text: vol.clone(),
+        is_accent: false,
+    });
+    right_items.push(RightItem {
+        text: time_str.clone(),
+        is_accent: false,
+    });
+    right_items.push(RightItem {
+        text: track_str.clone(),
+        is_accent: false,
+    });
     // Theme and viz are lowest priority (dropped first on narrow terminals).
-    right_items.push(RightItem { text: theme_key.clone(), is_accent: true });
-    right_items.push(RightItem { text: viz.clone(), is_accent: true });
+    right_items.push(RightItem {
+        text: theme_key.clone(),
+        is_accent: true,
+    });
+    right_items.push(RightItem {
+        text: viz.clone(),
+        is_accent: true,
+    });
     right_items.reverse(); // Now: viz, theme, track, time, vol, shuf, rep, [neon]
 
     // Measure right section width (all items joined by " · ", with a leading " · ").
@@ -577,27 +618,16 @@ fn render_library_card(
     let txt = parse_hex(&snap.theme.text);
     let hi_sel_bg = lerp_color(surf, parse_hex(&snap.theme.secondary), 0.18);
 
-    let card = Rect::new(
-        body.x,
-        body.y,
-        body.width.max(1),
-        body.height.max(1),
-    );
+    let card = Rect::new(body.x, body.y, body.width.max(1), body.height.max(1));
 
     // Solid surface under entire card so the visualizer never bleeds through empty rows.
     f.render_widget(Clear, card);
-    f.render_widget(
-        Block::default().style(Style::default().bg(surf)),
-        card,
-    );
+    f.render_widget(Block::default().style(Style::default().bg(surf)), card);
 
     let border = Block::bordered()
         .border_type(BorderType::Rounded)
         .border_style(Style::default().fg(pri))
-        .title(format!(
-            " Library ({} tracks) ",
-            snap.library_track_count
-        ))
+        .title(format!(" Library ({} tracks) ", snap.library_track_count))
         .title_style(
             Style::default()
                 .fg(txt)
@@ -618,7 +648,7 @@ fn render_library_card(
         let msg = "No tracks found. Press 'd' to download, 'a' to add a folder, or Ctrl+L for the Library Manager.";
         let inner_h = list_area.height.max(1);
         let w = list_area.width.max(1) as usize;
-        let est_lines = ((msg.chars().count() + w - 1) / w).max(1).min(inner_h as usize) as u16;
+        let est_lines = msg.chars().count().div_ceil(w).max(1).min(inner_h as usize) as u16;
         let top_pad = inner_h.saturating_sub(est_lines) / 2;
         let p_rect = Rect::new(
             list_area.x,
@@ -641,7 +671,9 @@ fn render_library_card(
     let gap_before_dur = 1usize; // mandatory space between title ellipsis and duration
     let dur_w = 6usize;
     let title_w = inner_w
-        .saturating_sub(prefix_w + gap_before_title + idx_w + gap_before_title + gap_before_dur + dur_w)
+        .saturating_sub(
+            prefix_w + gap_before_title + idx_w + gap_before_title + gap_before_dur + dur_w,
+        )
         .max(4);
 
     items_buf.clear();
@@ -683,11 +715,9 @@ fn render_library_card(
         };
         line_spans.push(Span::styled(title_fit, title_style));
         // Gap before duration (always at least one space visually)
-        line_spans.push(Span::styled(
-            " ",
-            Style::default().bg(row_bg),
-        ));
-        let used = prefix_w + gap_before_title + idx_w + gap_before_title + title_len + gap_before_dur;
+        line_spans.push(Span::styled(" ", Style::default().bg(row_bg)));
+        let used =
+            prefix_w + gap_before_title + idx_w + gap_before_title + title_len + gap_before_dur;
         let pad_to_dur = inner_w.saturating_sub(used + dur_w);
         if pad_to_dur > 0 {
             line_spans.push(Span::styled(
@@ -695,10 +725,7 @@ fn render_library_card(
                 Style::default().bg(row_bg),
             ));
         }
-        line_spans.push(Span::styled(
-            dur_pad,
-            Style::default().fg(dim).bg(row_bg),
-        ));
+        line_spans.push(Span::styled(dur_pad, Style::default().fg(dim).bg(row_bg)));
 
         items_buf.push(ListItem::new(Line::from(line_spans)));
     }
@@ -797,10 +824,7 @@ fn span_chip(theme: &Theme, key: &str, label: &str, out: &mut Vec<Span<'static>>
     out.push(Span::styled("[", Style::default().fg(acc).bg(bg)));
     out.push(Span::styled(
         key.to_string(),
-        Style::default()
-            .fg(pri)
-            .bg(bg)
-            .add_modifier(Modifier::BOLD),
+        Style::default().fg(pri).bg(bg).add_modifier(Modifier::BOLD),
     ));
     out.push(Span::styled(
         format!("]{label} "),
@@ -831,10 +855,7 @@ fn render_transport(
     spans_buf: &mut Vec<Span<'static>>,
 ) {
     let surf = parse_hex(&snap.theme.surface);
-    f.render_widget(
-        Block::default().style(Style::default().bg(surf)),
-        area,
-    );
+    f.render_widget(Block::default().style(Style::default().bg(surf)), area);
 
     let rows = Layout::default()
         .direction(Direction::Vertical)
@@ -864,10 +885,7 @@ fn render_transport(
                 .bg(surf)
                 .add_modifier(Modifier::BOLD),
         ),
-        Span::styled(
-            format!("{sep}{right_a}"),
-            Style::default().fg(dim).bg(surf),
-        ),
+        Span::styled(format!("{sep}{right_a}"), Style::default().fg(dim).bg(surf)),
     ]);
     f.render_widget(Paragraph::new(line_a), rows[0]);
 
@@ -877,31 +895,22 @@ fn render_transport(
     match snap.input_mode {
         InputMode::Search => {
             f.render_widget(
-                Paragraph::new(format!(
-                    "> Search: {}_  [Enter] [Esc]",
-                    snap.input_buffer
-                ))
-                .style(Style::default().fg(dim).bg(surf)),
+                Paragraph::new(format!("> Search: {}_  [Enter] [Esc]", snap.input_buffer))
+                    .style(Style::default().fg(dim).bg(surf)),
                 rows[2],
             );
         }
         InputMode::DownloadUrl => {
             f.render_widget(
-                Paragraph::new(format!(
-                    "> URL: {}_  [Enter] [Esc]",
-                    snap.input_buffer
-                ))
-                .style(Style::default().fg(dim).bg(surf)),
+                Paragraph::new(format!("> URL: {}_  [Enter] [Esc]", snap.input_buffer))
+                    .style(Style::default().fg(dim).bg(surf)),
                 rows[2],
             );
         }
         InputMode::AddLibraryPath => {
             f.render_widget(
-                Paragraph::new(format!(
-                    "> Folder: {}_  [Enter] [Esc]",
-                    snap.input_buffer
-                ))
-                .style(Style::default().fg(dim).bg(surf)),
+                Paragraph::new(format!("> Folder: {}_  [Enter] [Esc]", snap.input_buffer))
+                    .style(Style::default().fg(dim).bg(surf)),
                 rows[2],
             );
         }
@@ -937,7 +946,10 @@ fn render_transport(
                 let pct = (p * 100.0).clamp(0.0, 100.0).round() as i32;
                 spans_buf.push(Span::styled(
                     format!(" DL {pct}% — {} ", truncate_to_width(st, 24)),
-                    Style::default().fg(acc).bg(surf).add_modifier(Modifier::BOLD),
+                    Style::default()
+                        .fg(acc)
+                        .bg(surf)
+                        .add_modifier(Modifier::BOLD),
                 ));
             }
             f.render_widget(
@@ -955,14 +967,24 @@ fn render_toast(f: &mut Frame<'_>, full: Rect, text: &str, theme: &Theme, status
     let surf = parse_hex(&theme.surface);
     let acc = parse_hex(&theme.accent);
     let fg = parse_hex(&theme.text);
-    let inner_w = ((text.chars().count() as u16).saturating_add(3)).min(58).max(10);
+    let inner_w = ((text.chars().count() as u16).saturating_add(3)).clamp(10, 58);
     let w = inner_w.saturating_add(1).min(full.width);
     let h = 2u16.min(full.height.saturating_sub(status_rows));
     let x = full.x + full.width.saturating_sub(w);
     let y = full.y + status_rows;
-    let area = Rect::new(x, y, w.min(full.width), h.max(1).min(full.height.saturating_sub(status_rows)));
+    let area = Rect::new(
+        x,
+        y,
+        w.min(full.width),
+        h.max(1).min(full.height.saturating_sub(status_rows)),
+    );
     f.render_widget(Clear, area);
-    let inner = Rect::new(area.x.saturating_add(1), area.y, area.width.saturating_sub(1).max(1), area.height);
+    let inner = Rect::new(
+        area.x.saturating_add(1),
+        area.y,
+        area.width.saturating_sub(1).max(1),
+        area.height,
+    );
     let accent_bar = Rect::new(area.x, area.y, 1, area.height);
     f.render_widget(
         Paragraph::new("▌").style(Style::default().fg(acc).bg(surf)),
@@ -982,14 +1004,9 @@ fn help_chip_line(theme: &Theme, key: &str, action: &str) -> Line<'static> {
         Span::styled("[", Style::default().fg(acc)),
         Span::styled(
             key.to_string(),
-            Style::default()
-                .fg(pri)
-                .add_modifier(Modifier::BOLD),
+            Style::default().fg(pri).add_modifier(Modifier::BOLD),
         ),
-        Span::styled(
-            format!("] {action}"),
-            Style::default().fg(txt),
-        ),
+        Span::styled(format!("] {action}"), Style::default().fg(txt)),
     ])
 }
 
@@ -1006,7 +1023,10 @@ fn render_help(f: &mut Frame<'_>, full: Rect, theme: &Theme) {
         .border_style(Style::default().fg(pri))
         .title(Line::from(vec![
             Span::styled(" Help ", Style::default().fg(pri).bg(surf)),
-            Span::styled(" · ", Style::default().fg(parse_hex(&theme.text_dim)).bg(surf)),
+            Span::styled(
+                " · ",
+                Style::default().fg(parse_hex(&theme.text_dim)).bg(surf),
+            ),
             Span::styled(" ? ", Style::default().fg(pri).bg(surf)),
         ]));
     let inner = block.inner(area);
@@ -1091,7 +1111,11 @@ fn render_library_manager(f: &mut Frame<'_>, full: Rect, snap: &RenderSnapshot) 
     let mut lines: Vec<Line> = vec![Line::from("Folders:")];
     let total_tracks = snap.library_track_count;
     for (i, folder) in snap.library_folders.iter().enumerate() {
-        let prefix = if i == snap.selected_folder { "▸ " } else { "  " };
+        let prefix = if i == snap.selected_folder {
+            "▸ "
+        } else {
+            "  "
+        };
         let style = if i == snap.selected_folder {
             Style::default().fg(hi).bg(bg).add_modifier(Modifier::BOLD)
         } else {
@@ -1202,7 +1226,10 @@ fn render_settings(f: &mut Frame<'_>, full: Rect, snap: &RenderSnapshot) {
         let (status_str, status_color) = if snap.settings_download_dir_exists {
             ("\u{2713} exists".to_string(), ok_color)
         } else {
-            ("\u{2717} not found (will be created on first download)".to_string(), err_color)
+            (
+                "\u{2717} not found (will be created on first download)".to_string(),
+                err_color,
+            )
         };
         lines.push(Line::from(Span::styled(
             format!("  {status_str}"),
@@ -1221,6 +1248,7 @@ fn render_settings(f: &mut Frame<'_>, full: Rect, snap: &RenderSnapshot) {
 }
 
 /// Run the interactive TUI until [`AppState::quit`] is set.
+#[allow(clippy::too_many_arguments)]
 pub fn run(
     state: Arc<Mutex<AppState>>,
     theme: Arc<Mutex<Theme>>,
@@ -1276,14 +1304,10 @@ pub fn run(
         }
 
         frame_idx += 1;
-        if frame_idx % 60 == 0 {
+        if frame_idx.is_multiple_of(60) {
             if let Some(ref v) = latest_viz {
                 let t = smoothing::sub_frame_t(Instant::now(), v.timestamp, v.fft_period);
-                let peak = v
-                    .bins_smoothed
-                    .iter()
-                    .copied()
-                    .fold(0.0f32, f32::max);
+                let peak = v.bins_smoothed.iter().copied().fold(0.0f32, f32::max);
                 tracing::debug!(
                     sub_frame = t,
                     bass = v.bass_energy,
@@ -1296,13 +1320,7 @@ pub fn run(
 
         while event::poll(Duration::ZERO)? {
             let ev = event::read()?;
-            handle_event(
-                &state,
-                &theme,
-                custom_themes.as_deref(),
-                &deps,
-                &ev,
-            )?;
+            handle_event(&state, &theme, custom_themes.as_deref(), &deps, &ev)?;
         }
 
         while let Ok(ev) = fetch_rx.try_recv() {
@@ -1343,9 +1361,7 @@ pub fn run(
                             {
                                 let mut c = lock_shared(&config);
                                 c.app.library_paths.push(dl_str.clone());
-                                if let Err(e) =
-                                    crate::config::save(&deps.config_path, &c.clone())
-                                {
+                                if let Err(e) = crate::config::save(&deps.config_path, &c.clone()) {
                                     tracing::warn!(error = %e, "failed to save config after auto-adding download dir");
                                 }
                             }
@@ -1353,8 +1369,7 @@ pub fn run(
                                 let cfg_snap = lock_shared(&config).clone();
                                 let mut g = lock_shared(&state);
                                 crate::tui::events::sync_library_folders_from_config(
-                                    &mut g,
-                                    &cfg_snap,
+                                    &mut g, &cfg_snap,
                                 );
                             }
                         }
@@ -1363,10 +1378,7 @@ pub fn run(
                         let mut g = lock_shared(&state);
                         g.download_progress = None;
                         g.download_stage = None;
-                        g.message = Some((
-                            format!("Downloaded: {title}"),
-                            Instant::now(),
-                        ));
+                        g.message = Some((format!("Downloaded: {title}"), Instant::now()));
                     }
                     trigger_rescan(&state, &config);
                 }
@@ -1414,10 +1426,7 @@ pub fn run(
                     Instant::now(),
                 ));
             } else if !cur_silent && prev_silent_mode {
-                g.message = Some((
-                    "Audio device reconnected.".into(),
-                    Instant::now(),
-                ));
+                g.message = Some(("Audio device reconnected.".into(), Instant::now()));
             }
             prev_silent_mode = cur_silent;
             // Deferred rescan: detect when a scan finishes with a pending request.
@@ -1512,9 +1521,9 @@ mod tests {
     use super::*;
     use crate::app::state::{PanelFocus, Track, VisualizerMode};
     use crate::config::{resolve_active_theme, RtunesConfig};
+    use crate::tui::color::parse_hex;
     use crate::visualizer::renderers::make_renderer;
     use crate::visualizer::VisualizerData;
-    use crate::tui::color::parse_hex;
     use ratatui::backend::TestBackend;
     use ratatui::layout::{Constraint, Direction, Layout, Rect};
     use ratatui::widgets::{Block, BorderType};
@@ -1575,8 +1584,7 @@ mod tests {
         let mut term = Terminal::new(backend).unwrap();
         let mut scratch = RenderScratch::new();
         let mut viz = crate::visualizer::renderers::NoopVisualizer;
-        term
-            .draw(|f| draw_frame(f, &snap, None, 1.0, &mut viz, &mut scratch))
+        term.draw(|f| draw_frame(f, &snap, None, 1.0, &mut viz, &mut scratch))
             .unwrap();
         let buf = term.backend().buffer();
         let w = buf.area().width;
@@ -1620,8 +1628,7 @@ mod tests {
         let mut term = Terminal::new(backend).unwrap();
         let mut scratch = RenderScratch::new();
         let mut viz = crate::visualizer::renderers::NoopVisualizer;
-        term
-            .draw(|f| draw_frame(f, &snap, None, 1.0, &mut viz, &mut scratch))
+        term.draw(|f| draw_frame(f, &snap, None, 1.0, &mut viz, &mut scratch))
             .unwrap();
         let buf = term.backend().buffer();
         let mut found = false;
@@ -1636,10 +1643,15 @@ mod tests {
                 break;
             }
         }
-        assert!(found, "progress row should render diamond playhead when 0 < fill < width");
+        assert!(
+            found,
+            "progress row should render diamond playhead when 0 < fill < width"
+        );
     }
 
-    fn normal_layout_body_and_transport(full: ratatui::layout::Rect) -> (ratatui::layout::Rect, ratatui::layout::Rect) {
+    fn normal_layout_body_and_transport(
+        full: ratatui::layout::Rect,
+    ) -> (ratatui::layout::Rect, ratatui::layout::Rect) {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
@@ -1694,8 +1706,7 @@ mod tests {
         let mut term = Terminal::new(backend).unwrap();
         let mut scratch = RenderScratch::new();
         let mut viz = crate::visualizer::renderers::NoopVisualizer;
-        term
-            .draw(|f| draw_frame(f, &snap, None, 1.0, &mut viz, &mut scratch))
+        term.draw(|f| draw_frame(f, &snap, None, 1.0, &mut viz, &mut scratch))
             .unwrap();
         let buf = term.backend().buffer();
         let full = Rect::new(0, 0, 80, 24);
@@ -1769,9 +1780,11 @@ mod tests {
         let backend = TestBackend::new(80, 24);
         let mut term = Terminal::new(backend).unwrap();
         let mut scratch = RenderScratch::new();
-        let mut viz = make_renderer(VisualizerMode::Spectrum, &crate::config::VisualizerSettings::default());
-        term
-            .draw(|f| draw_frame(f, &snap, Some(&vd), 1.0, &mut *viz, &mut scratch))
+        let mut viz = make_renderer(
+            VisualizerMode::Spectrum,
+            &crate::config::VisualizerSettings::default(),
+        );
+        term.draw(|f| draw_frame(f, &snap, Some(&vd), 1.0, &mut *viz, &mut scratch))
             .unwrap();
         let buf = term.backend().buffer();
         let full = Rect::new(0, 0, 80, 24);
@@ -1815,8 +1828,7 @@ mod tests {
         let mut term = Terminal::new(backend).unwrap();
         let mut scratch = RenderScratch::new();
         let mut viz = crate::visualizer::renderers::NoopVisualizer;
-        term
-            .draw(|f| draw_frame(f, &snap, None, 1.0, &mut viz, &mut scratch))
+        term.draw(|f| draw_frame(f, &snap, None, 1.0, &mut viz, &mut scratch))
             .unwrap();
         let buf = term.backend().buffer();
         let mut found = false;
@@ -1850,8 +1862,7 @@ mod tests {
         let mut term = Terminal::new(backend).unwrap();
         let mut scratch = RenderScratch::new();
         let mut viz = crate::visualizer::renderers::NoopVisualizer;
-        term
-            .draw(|f| draw_frame(f, &snap, None, 1.0, &mut viz, &mut scratch))
+        term.draw(|f| draw_frame(f, &snap, None, 1.0, &mut viz, &mut scratch))
             .unwrap();
         let buf = term.backend().buffer();
         let full = Rect::new(0, 0, 80, 24);

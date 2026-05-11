@@ -4,9 +4,9 @@ use std::time::{Duration, Instant};
 
 use ratatui::layout::Rect;
 use ratatui::style::Style;
-use ratatui::widgets::Block;
-use ratatui::widgets::canvas::{Canvas, Context, Points};
 use ratatui::symbols::Marker;
+use ratatui::widgets::canvas::{Canvas, Context, Points};
+use ratatui::widgets::Block;
 use ratatui::Frame;
 
 use crate::tui::color::{dim_with_intensity, parse_hex};
@@ -25,6 +25,12 @@ pub struct Vectorscope {
     /// Running peak amplitude tracker for auto-scale (slow rise / fast fall EMA).
     /// Keeps the Lissajous figure visible even in quiet passages.
     amp_peak: f32,
+}
+
+impl Default for Vectorscope {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Vectorscope {
@@ -80,10 +86,7 @@ impl crate::visualizer::Visualizer for Vectorscope {
         if d.beat {
             self.pen_thick_until = Some(now + Duration::from_millis(100));
         }
-        let thick = self
-            .pen_thick_until
-            .map(|t| now < t)
-            .unwrap_or(false);
+        let thick = self.pen_thick_until.map(|t| now < t).unwrap_or(false);
 
         let pcm = &d.pcm_stereo;
         if pcm.len() >= 2 {
@@ -103,7 +106,7 @@ impl crate::visualizer::Visualizer for Vectorscope {
             let cy = hf * 0.5;
             let n = pcm.len();
             let mut pts: Vec<(f32, f32)> = Vec::with_capacity(n);
-            for (_i, &(l, r)) in pcm.iter().enumerate() {
+            for &(l, r) in pcm.iter() {
                 let vx = (l - r) * scale;
                 let vy = (l + r) * scale;
                 let wx = cx + vx;
@@ -169,17 +172,7 @@ impl crate::visualizer::Visualizer for Vectorscope {
                     });
                 }
                 if glow_on && !primary.is_empty() {
-                    glow_pass(
-                        cctx,
-                        w,
-                        h,
-                        [0.0, wf],
-                        [0.0, hf],
-                        &primary,
-                        bg,
-                        wave,
-                        true,
-                    );
+                    glow_pass(cctx, w, h, [0.0, wf], [0.0, hf], &primary, bg, wave, true);
                 }
             });
 
@@ -226,11 +219,10 @@ mod tests {
             viz_intensity: 1.0,
             baseline: false,
         };
-        term
-            .draw(|f| {
-                crate::visualizer::Visualizer::render(&mut v, f, area, Some(&data), 0.5, &ctx);
-            })
-            .unwrap();
+        term.draw(|f| {
+            crate::visualizer::Visualizer::render(&mut v, f, area, Some(&data), 0.5, &ctx);
+        })
+        .unwrap();
     }
 
     #[test]
@@ -262,11 +254,10 @@ mod tests {
         let area = Rect::new(0, 0, 50, 20);
         let backend = TestBackend::new(50, 20);
         let mut term = Terminal::new(backend).unwrap();
-        term
-            .draw(|f| {
-                crate::visualizer::Visualizer::render(&mut v, f, area, Some(&d), 0.0, &ctx);
-            })
-            .unwrap();
+        term.draw(|f| {
+            crate::visualizer::Visualizer::render(&mut v, f, area, Some(&d), 0.0, &ctx);
+        })
+        .unwrap();
         assert!(v.pen_thick_until.is_some());
     }
 }

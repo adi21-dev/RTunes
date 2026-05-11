@@ -40,12 +40,12 @@ pub(crate) fn linear_bands_to_relative_bins(
     if n == 0 {
         return;
     }
-    for i in 0..n {
-        band_db_scratch[i] = 20.0 * band_linear[i].max(EPSILON).log10();
+    for (i, db) in band_db_scratch.iter_mut().enumerate().take(n) {
+        *db = 20.0 * band_linear[i].max(EPSILON).log10();
     }
     let mut peak_db = f32::NEG_INFINITY;
-    for i in 0..n {
-        peak_db = peak_db.max(band_db_scratch[i]);
+    for db in band_db_scratch.iter().take(n) {
+        peak_db = peak_db.max(*db);
     }
     if peak_db <= REL_SILENCE_DB {
         out_bins[..n].fill(0.0);
@@ -72,7 +72,7 @@ pub fn apply_hann_window(samples: &mut [f32]) {
 
 fn log_edges(num_bins: usize, sample_rate: u32) -> Vec<f32> {
     let nyquist = (sample_rate as f32) * 0.5;
-    let f_max = nyquist.min(20_000.0).max(40.0);
+    let f_max = nyquist.clamp(40.0, 20_000.0);
     let f_min = 20.0f32;
     let mut edges = Vec::with_capacity(num_bins + 1);
     let log_min = f_min.ln();
@@ -123,6 +123,7 @@ impl FftCore {
         let sr = sample_rate as f32;
         let n = window_size as f32;
         let mut map = vec![usize::MAX; half];
+        #[allow(clippy::needless_range_loop)]
         for k in 1..half {
             let fk = k as f32 * sr / n;
             // Binary search: find the band whose [f_lo, f_hi) contains fk.
@@ -148,9 +149,9 @@ impl FftCore {
         let edges = log_edges(num_bins, sr);
         let half = window_size / 2;
         let mut a_weights = vec![1.0f32; half];
-        for k in 1..half {
+        for (k, w) in a_weights.iter_mut().enumerate().take(half).skip(1) {
             let fk = k as f32 * sr as f32 / window_size as f32;
-            a_weights[k] = a_weight(fk).powf(A_WEIGHT_BLEND);
+            *w = a_weight(fk).powf(A_WEIGHT_BLEND);
         }
         let bin_to_band = Self::compute_bin_to_band(window_size, num_bins, sr, &edges);
         Self {
@@ -181,9 +182,9 @@ impl FftCore {
         if self.a_weights.len() != half {
             self.a_weights.resize(half, 1.0);
         }
-        for k in 1..half {
+        for (k, w) in self.a_weights.iter_mut().enumerate().take(half).skip(1) {
             let fk = k as f32 * sr as f32 / self.window_size as f32;
-            self.a_weights[k] = a_weight(fk).powf(A_WEIGHT_BLEND);
+            *w = a_weight(fk).powf(A_WEIGHT_BLEND);
         }
         self.bin_to_band =
             Self::compute_bin_to_band(self.window_size, self.num_bins, sr, &self.log_bin_edges);
@@ -204,12 +205,13 @@ impl FftCore {
         let n = self.window_size;
         // sr is no longer needed per-frame: band mapping is pre-computed in bin_to_band.
 
-        for i in 0..n {
-            self.scratch[i] = Complex::new(mono_window[i] * self.window[i], 0.0);
+        for (i, s) in self.scratch.iter_mut().enumerate().take(n) {
+            *s = Complex::new(mono_window[i] * self.window[i], 0.0);
         }
         self.fft.process(&mut self.scratch);
 
         let half = n / 2;
+        #[allow(clippy::needless_range_loop)]
         for k in 1..half {
             let c = self.scratch[k];
             let m = (c.re * c.re + c.im * c.im).sqrt();
@@ -251,10 +253,10 @@ impl FftCore {
         let mut high_c = 0u32;
         for i in 0..bins.len() {
             let c = (edges[i] * edges[i + 1]).sqrt();
-            if c >= 20.0 && c < 250.0 {
+            if (20.0..250.0).contains(&c) {
                 bass_s += bins[i];
                 bass_c += 1;
-            } else if c >= 250.0 && c < 4000.0 {
+            } else if (250.0..4000.0).contains(&c) {
                 mid_s += bins[i];
                 mid_c += 1;
             } else if c >= 4000.0 {
@@ -267,11 +269,7 @@ impl FftCore {
         } else {
             0.0
         };
-        let mid = if mid_c > 0 {
-            mid_s / mid_c as f32
-        } else {
-            0.0
-        };
+        let mid = if mid_c > 0 { mid_s / mid_c as f32 } else { 0.0 };
         let high = if high_c > 0 {
             high_s / high_c as f32
         } else {
@@ -369,7 +367,9 @@ mod tests {
     fn loudness_silence_zero_full_scale_square() {
         let silence = vec![0.0f32; 1024];
         assert!(FftCore::loudness(&silence) < 1e-6);
-        let sq: Vec<f32> = (0..1024).map(|i| if i % 2 == 0 { 1.0 } else { -1.0 }).collect();
+        let sq: Vec<f32> = (0..1024)
+            .map(|i| if i % 2 == 0 { 1.0 } else { -1.0 })
+            .collect();
         assert!(FftCore::loudness(&sq) > 0.95);
     }
 

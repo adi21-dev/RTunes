@@ -2,22 +2,19 @@
 
 use ratatui::layout::{Layout, Rect};
 use ratatui::style::Style;
-use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Paragraph};
-use ratatui::widgets::canvas::{Canvas, Points};
 use ratatui::symbols::Marker;
+use ratatui::text::{Line, Span};
+use ratatui::widgets::canvas::{Canvas, Points};
+use ratatui::widgets::{Block, Paragraph};
 use ratatui::Frame;
 
 use std::sync::Arc;
 
-use crate::config::Theme;
 use crate::config::theme::BarStyle;
+use crate::config::Theme;
 use crate::tui::color::{dim_with_intensity, lerp_color, parse_hex, GradientLut};
-use crate::visualizer::smoothing::{
-    apply_spectral_smoothing_with_scratch, band_tau, ema_dt,
-};
+use crate::visualizer::smoothing::{apply_spectral_smoothing_with_scratch, band_tau, ema_dt};
 use crate::visualizer::VisualizerData;
-
 
 /// Adaptive bar count from terminal width (plan: 32 / 48 / 64).
 pub fn bars_for_width(w: u16) -> usize {
@@ -68,6 +65,12 @@ pub struct Spectrum {
     lut_stops: Vec<String>,
 }
 
+impl Default for Spectrum {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Spectrum {
     pub fn new() -> Self {
         Self {
@@ -112,6 +115,7 @@ impl Spectrum {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn render_block_bars(
         &self,
         f: &mut Frame<'_>,
@@ -135,11 +139,7 @@ impl Spectrum {
 
         let mut lines: Vec<Line> = Vec::with_capacity(h);
         for row_ix in 0..h {
-            let row_from_top = if mirror_y {
-                h - 1 - row_ix
-            } else {
-                row_ix
-            };
+            let row_from_top = if mirror_y { h - 1 - row_ix } else { row_ix };
             let from_bottom = h - 1 - row_from_top;
 
             let mut spans: Vec<Span> = Vec::with_capacity(w);
@@ -184,6 +184,7 @@ impl Spectrum {
         f.render_widget(p, area);
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn render_dots(
         &self,
         f: &mut Frame<'_>,
@@ -208,18 +209,18 @@ impl Spectrum {
             .y_bounds([0.0, h])
             .background_color(bg)
             .paint(move |ctx| {
-                for i in 0..bars {
+                for (i, &bar_val) in heights_owned.iter().enumerate().take(bars) {
                     let x0 = i as f64 / bars as f64 * w;
                     let x1 = (i + 1) as f64 / bars as f64 * w;
                     let cx = (x0 + x1) * 0.5;
-                    let bar_h = heights_owned[i] as f64 * h;
+                    let bar_h = bar_val as f64 * h;
                     let height_ratio = (bar_h / h).clamp(0.0, 1.0) as f32;
                     let mut c = lut.get(height_ratio);
                     c = dim_with_intensity(c, bg, viz_intensity);
                     if dim {
                         c = lerp_color(c, bg, 0.5);
                     }
-                    let steps = ((bar_h * 4.0).ceil() as usize).max(2).min(400);
+                    let steps = ((bar_h * 4.0).ceil() as usize).clamp(2, 400);
                     let mut coords: Vec<(f64, f64)> = Vec::with_capacity(steps + 2);
                     for s in 0..steps {
                         let t = s as f64 / (steps - 1) as f64;
@@ -236,7 +237,10 @@ impl Spectrum {
                 }
             });
 
-        f.render_widget(canvas.block(Block::default().style(Style::default().bg(bg))), area);
+        f.render_widget(
+            canvas.block(Block::default().style(Style::default().bg(bg))),
+            area,
+        );
     }
 }
 
@@ -285,7 +289,11 @@ impl crate::visualizer::Visualizer for Spectrum {
         for i in 0..bars {
             let target = self.decimated_prev[i].mul_add(1.0 - t, self.decimated_cur[i] * t);
             let (tau_a, tau_r) = band_tau(i, bars);
-            let tau = if target > self.display_ema[i] { tau_a } else { tau_r };
+            let tau = if target > self.display_ema[i] {
+                tau_a
+            } else {
+                tau_r
+            };
             self.display_ema[i] = ema_dt(self.display_ema[i], target, tau, dt);
             self.heights[i] = self.display_ema[i].clamp(0.0, 1.0);
         }
@@ -485,7 +493,8 @@ mod tests {
                     continue;
                 }
                 assert_eq!(
-                    cell.fg, bg,
+                    cell.fg,
+                    bg,
                     "non-bg fg at ({x},{y}) sym={:?}",
                     cell.symbol()
                 );
@@ -505,11 +514,10 @@ mod tests {
             .cloned()
             .expect("synthwave builtin");
         let ctx = test_ctx(&th);
-        term
-            .draw(|f| {
-                crate::visualizer::Visualizer::render(&mut sp, f, area, Some(&data), 0.5, &ctx);
-            })
-            .unwrap();
+        term.draw(|f| {
+            crate::visualizer::Visualizer::render(&mut sp, f, area, Some(&data), 0.5, &ctx);
+        })
+        .unwrap();
     }
 
     #[test]
@@ -524,11 +532,10 @@ mod tests {
             .cloned()
             .expect("synthwave builtin");
         let ctx = test_ctx(&th);
-        term
-            .draw(|f| {
-                crate::visualizer::Visualizer::render(&mut sp, f, area, Some(&data), 0.5, &ctx);
-            })
-            .unwrap();
+        term.draw(|f| {
+            crate::visualizer::Visualizer::render(&mut sp, f, area, Some(&data), 0.5, &ctx);
+        })
+        .unwrap();
         assert_eq!(sp.last_decimated_len(), 32);
     }
 
@@ -548,11 +555,10 @@ mod tests {
             .expect("synthwave builtin");
         let ctx = test_ctx(&th);
         for _ in 0..8 {
-            term
-                .draw(|f| {
-                    crate::visualizer::Visualizer::render(&mut sp, f, area, Some(&data), 1.0, &ctx);
-                })
-                .unwrap();
+            term.draw(|f| {
+                crate::visualizer::Visualizer::render(&mut sp, f, area, Some(&data), 1.0, &ctx);
+            })
+            .unwrap();
         }
         let buf = term.backend().buffer();
         let bottom_row = area.height - 1;
@@ -581,11 +587,10 @@ mod tests {
             .expect("synthwave builtin");
         let ctx = test_ctx(&th);
         for _ in 0..24 {
-            term
-                .draw(|f| {
-                    crate::visualizer::Visualizer::render(&mut sp, f, area, Some(&d), 1.0, &ctx);
-                })
-                .unwrap();
+            term.draw(|f| {
+                crate::visualizer::Visualizer::render(&mut sp, f, area, Some(&d), 1.0, &ctx);
+            })
+            .unwrap();
         }
         let buf = term.backend().buffer();
         let y_mid = area.y + area.height / 2;

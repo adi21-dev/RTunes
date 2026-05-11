@@ -83,10 +83,18 @@ mod tests {
         let mut p = PhosphorBuffer::new(0.85);
         p.ensure_size(10, 10);
         p.paint(5, 5, 1.0);
-        let v0 = p.iter_lit(0.0).find(|(x, y, _)| *x == 5 && *y == 5).unwrap().2;
+        let v0 = p
+            .iter_lit(0.0)
+            .find(|(x, y, _)| *x == 5 && *y == 5)
+            .unwrap()
+            .2;
         assert!((v0 - 1.0).abs() < 1e-5);
         p.decay();
-        let v1 = p.iter_lit(0.0).find(|(x, y, _)| *x == 5 && *y == 5).unwrap().2;
+        let v1 = p
+            .iter_lit(0.0)
+            .find(|(x, y, _)| *x == 5 && *y == 5)
+            .unwrap()
+            .2;
         assert!((v1 - 0.85).abs() < 1e-5);
     }
 }

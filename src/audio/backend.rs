@@ -108,9 +108,7 @@ impl AudioBackend for SilentBackend {
     fn play(&mut self, path: &Path) -> Result<()> {
         self.current = Some(path.to_path_buf());
         self.position = Duration::ZERO;
-        self.duration = self
-            .duration_override
-            .or_else(|| probe_duration_secs(path));
+        self.duration = self.duration_override.or_else(|| probe_duration_secs(path));
         self.playing = true;
         Ok(())
     }
@@ -131,9 +129,7 @@ impl AudioBackend for SilentBackend {
     }
 
     fn seek(&mut self, position: Duration) -> Result<()> {
-        let max = self
-            .duration
-            .unwrap_or(Duration::from_secs(u64::MAX / 4));
+        let max = self.duration.unwrap_or(Duration::from_secs(u64::MAX / 4));
         self.position = position.min(max);
         Ok(())
     }

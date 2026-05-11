@@ -5,9 +5,9 @@ use std::time::Instant;
 
 use ratatui::layout::Rect;
 use ratatui::style::Style;
-use ratatui::widgets::Block;
-use ratatui::widgets::canvas::{Canvas, Points};
 use ratatui::symbols::Marker;
+use ratatui::widgets::canvas::{Canvas, Points};
+use ratatui::widgets::Block;
 use ratatui::Frame;
 
 use crate::tui::color::{dim_with_intensity, lerp_color, parse_hex};
@@ -68,10 +68,7 @@ impl crate::visualizer::Visualizer for PulseRings {
 
         if data.is_none() || d.loudness < 0.005 {
             self.rings.clear();
-            f.render_widget(
-                Block::default().style(Style::default().bg(bg)),
-                area,
-            );
+            f.render_widget(Block::default().style(Style::default().bg(bg)), area);
             crate::visualizer::maybe_draw_viz_baseline(f, area, rctx);
             return;
         }
@@ -116,18 +113,17 @@ impl crate::visualizer::Visualizer for PulseRings {
                         continue;
                     }
                     let base = gradient_color(&stops, *hue_t);
-                    let c = lerp_color(
-                        dim_with_intensity(base, bg, vi),
-                        bg,
-                        1.0 - *alpha,
-                    );
+                    let c = lerp_color(dim_with_intensity(base, bg, vi), bg, 1.0 - *alpha);
                     let n = 48;
                     let mut coords: Vec<(f64, f64)> = Vec::with_capacity(n);
                     for i in 0..n {
                         let th = TAU * (i as f64 / n as f64);
                         coords.push((cx + r_pix * th.cos(), cy + r_pix * th.sin()));
                     }
-                    ctx.draw(&Points { coords: &coords, color: c });
+                    ctx.draw(&Points {
+                        coords: &coords,
+                        color: c,
+                    });
                 }
             });
 
@@ -174,11 +170,10 @@ mod tests {
         let area = Rect::new(0, 0, 60, 20);
         let data = VisualizerData::empty(64);
         let th = theme::builtin_themes().get("synthwave").cloned().unwrap();
-        term
-            .draw(|f| {
-                Visualizer::render(&mut p, f, area, Some(&data), 0.0, &ctx(&th));
-            })
-            .unwrap();
+        term.draw(|f| {
+            Visualizer::render(&mut p, f, area, Some(&data), 0.0, &ctx(&th));
+        })
+        .unwrap();
     }
 
     #[test]
@@ -191,8 +186,7 @@ mod tests {
         d.loudness = 0.0;
         d.beat = false;
         let th = theme::builtin_themes().get("synthwave").cloned().unwrap();
-        term
-            .draw(|f| Visualizer::render(&mut p, f, area, Some(&d), 0.0, &ctx(&th)))
+        term.draw(|f| Visualizer::render(&mut p, f, area, Some(&d), 0.0, &ctx(&th)))
             .unwrap();
         let buf = term.backend().buffer();
         for y in 0..12u16 {
@@ -220,8 +214,7 @@ mod tests {
         d.bass_energy = 0.8;
         d.mid_energy = 0.1;
         d.high_energy = 0.1;
-        term
-            .draw(|f| Visualizer::render(&mut p, f, area, Some(&d), 0.0, &ctx(&th)))
+        term.draw(|f| Visualizer::render(&mut p, f, area, Some(&d), 0.0, &ctx(&th)))
             .unwrap();
         assert_eq!(p.ring_count(), 1);
         let buf = term.backend().buffer();
@@ -236,8 +229,7 @@ mod tests {
         }
         assert!(any_fg, "expected at least one styled cell after beat ring");
         d.beat = false;
-        term
-            .draw(|f| Visualizer::render(&mut p, f, area, Some(&d), 0.0, &ctx(&th)))
+        term.draw(|f| Visualizer::render(&mut p, f, area, Some(&d), 0.0, &ctx(&th)))
             .unwrap();
         assert_eq!(p.ring_count(), 1);
     }

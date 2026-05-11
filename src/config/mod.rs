@@ -15,8 +15,10 @@ pub use theme::{resolve_active_theme, Theme};
 
 const CONFIG_ENV: &str = "RTUNES_CONFIG_PATH";
 
-const DEFAULT_CONFIG_YAML: &str =
-    include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/default_config.yaml"));
+const DEFAULT_CONFIG_YAML: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/assets/default_config.yaml"
+));
 
 /// Parent directory of the running executable, if `current_exe` succeeds.
 fn exe_parent_dir() -> Option<PathBuf> {
@@ -201,18 +203,14 @@ pub struct RtunesConfig {
 /// Load config from `path`, or create it from embedded defaults if missing.
 pub fn load_or_create(path: &Path) -> Result<RtunesConfig> {
     if !path.exists() {
-        let default: RtunesConfig = serde_yaml::from_str(DEFAULT_CONFIG_YAML).map_err(|e| {
-            RtunesError::Config(format!("parse embedded defaults: {e}"))
-        })?;
+        let default: RtunesConfig = serde_yaml::from_str(DEFAULT_CONFIG_YAML)
+            .map_err(|e| RtunesError::Config(format!("parse embedded defaults: {e}")))?;
         save(path, &default)?;
         return Ok(default);
     }
-    let s = fs::read_to_string(path).map_err(|e| {
-        RtunesError::Config(format!("read {}: {e}", path.display()))
-    })?;
-    serde_yaml::from_str(&s).map_err(|e| {
-        RtunesError::Config(format!("{}: {e}", path.display()))
-    })
+    let s = fs::read_to_string(path)
+        .map_err(|e| RtunesError::Config(format!("read {}: {e}", path.display())))?;
+    serde_yaml::from_str(&s).map_err(|e| RtunesError::Config(format!("{}: {e}", path.display())))
 }
 
 /// Write config to `path` (truncate + write + sync).
@@ -222,9 +220,9 @@ pub fn load_or_create(path: &Path) -> Result<RtunesConfig> {
 pub fn save(path: &Path, cfg: &RtunesConfig) -> Result<()> {
     let yaml = serde_yaml::to_string(cfg)
         .map_err(|e| RtunesError::Config(format!("serialize config: {e}")))?;
-    let parent = path.parent().ok_or_else(|| {
-        RtunesError::Config("config path has no parent directory".into())
-    })?;
+    let parent = path
+        .parent()
+        .ok_or_else(|| RtunesError::Config("config path has no parent directory".into()))?;
     fs::create_dir_all(parent)?;
     let mut f = fs::File::create(path).map_err(|e| {
         RtunesError::Config(format!(
@@ -232,12 +230,10 @@ pub fn save(path: &Path, cfg: &RtunesConfig) -> Result<()> {
             path.display()
         ))
     })?;
-    f.write_all(yaml.as_bytes()).map_err(|e| {
-        RtunesError::Config(format!("Failed to write {}: {e}", path.display()))
-    })?;
-    f.sync_all().map_err(|e| {
-        RtunesError::Config(format!("Failed to sync {}: {e}", path.display()))
-    })?;
+    f.write_all(yaml.as_bytes())
+        .map_err(|e| RtunesError::Config(format!("Failed to write {}: {e}", path.display())))?;
+    f.sync_all()
+        .map_err(|e| RtunesError::Config(format!("Failed to sync {}: {e}", path.display())))?;
     Ok(())
 }
 

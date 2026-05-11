@@ -2,9 +2,9 @@
 
 use ratatui::layout::Rect;
 use ratatui::style::Style;
-use ratatui::widgets::Block;
-use ratatui::widgets::canvas::{Canvas, Context, Points};
 use ratatui::symbols::Marker;
+use ratatui::widgets::canvas::{Canvas, Context, Points};
+use ratatui::widgets::Block;
 use ratatui::Frame;
 
 use crate::tui::color::{dim_with_intensity, parse_hex};
@@ -33,6 +33,12 @@ pub struct Oscilloscope {
     /// Reusable coordinate buffers for canvas rendering.
     primary: Vec<(f64, f64)>,
     trail_pts: Vec<(f64, f64)>,
+}
+
+impl Default for Oscilloscope {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Oscilloscope {
@@ -216,11 +222,10 @@ mod tests {
             viz_intensity: 1.0,
             baseline: false,
         };
-        term
-            .draw(|f| {
-                crate::visualizer::Visualizer::render(&mut osc, f, area, Some(&data), 0.5, &ctx);
-            })
-            .unwrap();
+        term.draw(|f| {
+            crate::visualizer::Visualizer::render(&mut osc, f, area, Some(&data), 0.5, &ctx);
+        })
+        .unwrap();
     }
 
     #[test]

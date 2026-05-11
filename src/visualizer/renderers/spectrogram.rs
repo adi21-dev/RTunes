@@ -23,14 +23,8 @@ fn bin_index(x: u16, w: u16, n: usize, mode: SpectrogramMode) -> usize {
     }
     let n = n.max(1);
     match mode {
-        SpectrogramMode::Standard => {
-            let b = (x as usize * n / w as usize).min(n - 1);
-            b
-        }
-        SpectrogramMode::Inverted => {
-            let b = (((w - 1 - x) as usize) * n / w as usize).min(n - 1);
-            b
-        }
+        SpectrogramMode::Standard => (x as usize * n / w as usize).min(n - 1),
+        SpectrogramMode::Inverted => (((w - 1 - x) as usize) * n / w as usize).min(n - 1),
         SpectrogramMode::Mirrored => {
             let cx = (w - 1) as f32 * 0.5;
             let dist = ((x as f32 - cx).abs() / cx.max(0.5)) * ((n / 2).max(1)) as f32;
@@ -66,6 +60,12 @@ pub struct Spectrogram {
     blurred: Vec<f32>,
     /// Per-row magnitudes buffer (length = w) — reused across rows.
     mags_buf: Vec<f32>,
+}
+
+impl Default for Spectrogram {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Spectrogram {
@@ -148,8 +148,13 @@ impl crate::visualizer::Visualizer for Spectrogram {
 
             if row_ix == 0 && !src_row.is_empty() {
                 // Interpolate top row for sub-frame smoothness.
-                for i in 0..nbin.min(src_row.len()) {
-                    self.scratch[i] = lerp_f32(self.prev_top[i], src_row[i], t);
+                for (i, s) in self
+                    .scratch
+                    .iter_mut()
+                    .enumerate()
+                    .take(nbin.min(src_row.len()))
+                {
+                    *s = lerp_f32(self.prev_top[i], src_row[i], t);
                 }
                 for x in 0..w {
                     let bi = self.cached_indices[x];
@@ -221,11 +226,10 @@ mod tests {
             viz_intensity: 1.0,
             baseline: false,
         };
-        term
-            .draw(|f| {
-                crate::visualizer::Visualizer::render(&mut s, f, area, Some(&data), 0.5, &ctx);
-            })
-            .unwrap();
+        term.draw(|f| {
+            crate::visualizer::Visualizer::render(&mut s, f, area, Some(&data), 0.5, &ctx);
+        })
+        .unwrap();
     }
 
     #[test]
@@ -250,11 +254,10 @@ mod tests {
             viz_intensity: 1.0,
             baseline: false,
         };
-        term
-            .draw(|f| {
-                crate::visualizer::Visualizer::render(&mut s, f, area, Some(&data), 0.5, &ctx);
-            })
-            .unwrap();
+        term.draw(|f| {
+            crate::visualizer::Visualizer::render(&mut s, f, area, Some(&data), 0.5, &ctx);
+        })
+        .unwrap();
     }
 
     #[test]
@@ -263,7 +266,10 @@ mod tests {
         s.prev_top = vec![0.0f32; 64];
         let mut d = VisualizerData::empty(64);
         d.bins_smoothed[0] = 1.0;
-        d.spectrogram_rows.lock().unwrap().push_front(d.bins_smoothed.clone());
+        d.spectrogram_rows
+            .lock()
+            .unwrap()
+            .push_front(d.bins_smoothed.clone());
         let v = lerp_f32(0.0, 1.0, 0.5);
         assert!((v - 0.5).abs() < 1e-5);
     }
