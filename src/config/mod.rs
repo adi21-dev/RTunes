@@ -25,16 +25,29 @@ fn exe_parent_dir() -> Option<PathBuf> {
         .and_then(|p| p.parent().map(Path::to_path_buf))
 }
 
-/// Default config file: `config.yaml` next to the `rtunes` executable.
+/// Default config file location, with two-tier resolution:
 ///
-/// Override with `RTUNES_CONFIG_PATH` or `--config`. If the executable path
-/// cannot be resolved, falls back to `./config.yaml`.
+/// 1. `RTUNES_CONFIG_PATH` env var (highest priority).
+/// 2. **Portable mode**: if `config.yaml` exists next to the executable, use it.
+///    This preserves behaviour for development builds and self-contained archives.
+/// 3. **Installed mode**: `<OS config dir>/rtunes/config.yaml`
+///    (`%APPDATA%\rtunes\` on Windows, `~/.config/rtunes/` on Linux,
+///    `~/Library/Application Support/rtunes/` on macOS).
+/// 4. Falls back to `./config.yaml` if none of the above can be resolved.
 pub fn config_path() -> PathBuf {
     if let Ok(p) = std::env::var(CONFIG_ENV) {
         return PathBuf::from(p);
     }
-    exe_parent_dir()
+    // Portable override: exe-adjacent config.yaml takes priority when it already exists.
+    if let Some(exe_cfg) = exe_parent_dir().map(|d| d.join("config.yaml")) {
+        if exe_cfg.exists() {
+            return exe_cfg;
+        }
+    }
+    // Installed mode: OS standard config directory.
+    dirs::config_dir()
         .unwrap_or_else(|| PathBuf::from("."))
+        .join("rtunes")
         .join("config.yaml")
 }
 
