@@ -8,6 +8,16 @@ Terminal music player with **10 audio-reactive visualizers**, a Ratatui library 
 
 ### From source
 
+**Linux** — install ALSA dev headers first:
+```bash
+# Debian / Ubuntu
+sudo apt install libasound2-dev
+# Fedora
+sudo dnf install alsa-lib-devel
+# Arch
+sudo pacman -S alsa-lib
+```
+
 ```bash
 cargo install --path .
 # or
@@ -75,13 +85,35 @@ Global flags: `--config <path>`, `--log-level <filter>` (e.g. `info`, `debug`).
 
 ## Configuration
 
-On first run, RTunes creates a YAML config under the OS config directory (override with **`RTUNES_CONFIG_PATH`** or **`rtunes --config`**).
+On first run, RTunes creates a YAML config under the OS standard config directory:
+
+| Platform | Default config path |
+|----------|--------------------|
+| Windows  | `%APPDATA%\rtunes\config.yaml` |
+| macOS    | `~/Library/Application Support/rtunes/config.yaml` |
+| Linux    | `~/.config/rtunes/config.yaml` |
+
+**Portable mode**: if `config.yaml` exists next to the `rtunes` binary (e.g. in a self-contained archive), it takes priority over the OS config directory.
+
+Override entirely with **`RTUNES_CONFIG_PATH`** env var or **`rtunes --config <path>`**.
 
 Authoritative defaults and field descriptions live in **[`assets/default_config.yaml`](assets/default_config.yaml)** — copy values into your user config as needed.
 
 ## Logging
 
 File logs (daily rotation) under the platform **local data** directory, e.g. Windows: `%LOCALAPPDATA%\rtunes\`. Override verbosity with `RTUNES_LOG_LEVEL` or `--log-level`.
+
+## Terminal compatibility
+
+rtunes renders Unicode block characters and ANSI colours. Recommended terminals:
+
+| Platform | Recommended |
+|----------|------------|
+| Windows  | [Windows Terminal](https://aka.ms/terminal), WezTerm, Alacritty |
+| macOS    | iTerm2, Alacritty, WezTerm |
+| Linux    | Any modern VTE/xterm terminal; Wayland compositors supported |
+
+> **Note (Windows)**: legacy `cmd.exe` / ConHost may not render visualizer block characters correctly. Windows Terminal (bundled with Windows 11) is recommended.
 
 ## Development
 

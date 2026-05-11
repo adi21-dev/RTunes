@@ -3,6 +3,9 @@
 *.log.*
 config.yaml
 
+# Local planning and notes
+/docs/
+
 # Bundled binaries (not in git); keep folder via .gitkeep
 /deps/*
 !/deps/.gitkeep
