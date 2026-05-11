@@ -34,6 +34,7 @@ rfd = "0.15"
 
 [dev-dependencies]
 serde_yaml = "0.9"
+cargo-husky = { version = "1", default-features = false, features = ["user-hooks"] }
 
 [lib]
 name = "rtunes"

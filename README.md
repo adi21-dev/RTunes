@@ -122,6 +122,8 @@ cargo test
 cargo test --release   # stricter scan perf budget for 1000-track fixture
 ```
 
+The first `cargo test` run installs a pre-commit hook via `cargo-husky` that runs `cargo fmt --check` and `cargo clippy` before every commit. No manual setup needed.
+
 ## License
 
 Dual-licensed under **MIT OR Apache-2.0** (see `Cargo.toml`).

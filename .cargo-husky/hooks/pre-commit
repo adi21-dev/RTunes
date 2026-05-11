@@ -1,0 +1,20 @@
+#!/bin/sh
+# Pre-commit hook managed by cargo-husky.
+# Installed automatically when anyone runs `cargo test`.
+set -e
+
+echo "==> cargo fmt --check"
+cargo fmt --all -- --check || {
+    echo ""
+    echo "Formatting issues found. Run 'cargo fmt' and re-stage your changes."
+    exit 1
+}
+
+echo "==> cargo clippy"
+cargo clippy -- -D warnings || {
+    echo ""
+    echo "Clippy warnings found. Fix the issues above before committing."
+    exit 1
+}
+
+echo "Pre-commit checks passed."
