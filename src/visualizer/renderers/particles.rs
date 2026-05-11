@@ -7,6 +7,7 @@ use ratatui::widgets::Block;
 use ratatui::widgets::canvas::{Canvas, Context, Points};
 use ratatui::symbols::Marker;
 use ratatui::Frame;
+use std::sync::atomic::{AtomicU32, Ordering};
 
 use crate::config::VisualizerSettings;
 use crate::tui::color::{dim_with_intensity, lerp_color, parse_hex};
@@ -25,6 +26,10 @@ struct Particle {
     life: f32,
     hue_idx: u8,
 }
+
+/// Global counter so each `Particles` instance gets a unique Perlin seed —
+/// prevents all simultaneous particle renderers from sharing the same turbulence field.
+static PARTICLE_INSTANCE_CTR: AtomicU32 = AtomicU32::new(0);
 
 pub struct Particles {
     pool: Vec<Particle>,
@@ -48,11 +53,14 @@ impl Particles {
     }
 
     pub fn with_settings(s: &VisualizerSettings) -> Self {
+        // Multiply by a large prime (Knuth's multiplicative hash) to spread seeds apart.
+        let instance = PARTICLE_INSTANCE_CTR.fetch_add(1, Ordering::Relaxed);
+        let perlin_seed = 0x5EED_u32.wrapping_add(instance.wrapping_mul(2_654_435_761));
         Self {
             pool: Vec::new(),
             cap: 0,
             history: PhosphorBuffer::new(0.94),
-            perlin: noise::Perlin::new(0x5EED),
+            perlin: noise::Perlin::new(perlin_seed),
             rng: 0xC0FFEE_u64,
             time_s: 0.0,
             substeps: (s.particles_substeps.max(1)) as usize,

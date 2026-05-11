@@ -14,7 +14,7 @@ use crate::config::AudioSettings;
 use crate::visualizer::data::VisualizerData;
 use crate::visualizer::fft::FftCore;
 use crate::visualizer::smoothing::{
-    apply_spectral_smoothing, asymmetric_ema, peak_hold_drift, OneEuroFilter,
+    apply_spectral_smoothing_with_scratch, band_tau, peak_hold_drift, OneEuroFilter,
     SpectralFluxBeatDetector,
 };
 
@@ -72,6 +72,8 @@ fn fft_loop(
     let mut bins_smoothed = vec![0.0f32; NUM_VIS_BINS];
     let mut bins_peak = vec![0.0f32; NUM_VIS_BINS];
     let mut prev_smoothed = vec![0.0f32; NUM_VIS_BINS];
+    // Scratch for spectral smoothing — pre-allocated once, reused every frame.
+    let mut spectral_scratch = Vec::<f32>::with_capacity(NUM_VIS_BINS);
 
     let mut fft: Option<FftCore> = None;
     let mut last_sr = 0u32;
@@ -137,11 +139,10 @@ fn fft_loop(
         }
 
         fft_core.process(&mut mono_window, &mut bins_raw);
-        apply_spectral_smoothing(&mut bins_raw);
+        // Zero-alloc spectral smoothing — reuses pre-allocated scratch buffer.
+        apply_spectral_smoothing_with_scratch(&mut bins_raw, &mut spectral_scratch);
 
         let dt = frame_period.as_secs_f32();
-        let attack = 1.0 - (-dt * K_FFT_ATTACK).exp();
-        let release = 1.0 - (-dt * K_FFT_RELEASE).exp();
         let peak_decay = (-dt * K_PEAK_DECAY).exp();
 
         // --- Find a free pool slot (refcount == 1 means not held by channel or TUI) ---
@@ -164,14 +165,16 @@ fn fft_loop(
             viz.bins_prev.copy_from_slice(&prev_smoothed);
         }
 
-        // Compute new smoothed bins using the local scratch.
+        // Per-band frequency-dependent EMA: bass responds slowly (sustain),
+        // treble responds quickly (sharp transients).
         for i in 0..NUM_VIS_BINS {
-            bins_smoothed[i] = asymmetric_ema(
-                prev_smoothed[i],
-                bins_raw[i],
-                attack,
-                release,
-            );
+            let (tau_a, tau_r) = band_tau(i, NUM_VIS_BINS);
+            let band_attack  = 1.0 - (-dt / tau_a).exp();
+            let band_release = 1.0 - (-dt / tau_r).exp();
+            let target = bins_raw[i];
+            let prev   = prev_smoothed[i];
+            let alpha  = if target > prev { band_attack } else { band_release };
+            bins_smoothed[i] = (prev + alpha * (target - prev)).clamp(0.0, 1.0);
             bins_peak[i] = peak_hold_drift(bins_peak[i], bins_smoothed[i], peak_decay);
         }
         prev_smoothed.copy_from_slice(&bins_smoothed);

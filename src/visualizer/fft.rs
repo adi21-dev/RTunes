@@ -102,9 +102,41 @@ pub struct FftCore {
     band_db: Vec<f32>,
     /// A-weight blend per FFT bin index `k` (multiply `|X[k]|` before log-band pooling).
     a_weights: Vec<f32>,
+    /// Pre-computed: `bin_to_band[k]` = log-band index for FFT bin k, or `usize::MAX` if unmapped.
+    /// Built once in `new()` / `rebuild_for_sample_rate()` — eliminates the O(n_fft × n_bins)
+    /// nested loop in `process()` and replaces it with a single O(n_fft) pass.
+    bin_to_band: Vec<usize>,
+    /// Per-band accumulator counts — reused each frame, zero-allocation.
+    band_count: Vec<u32>,
 }
 
 impl FftCore {
+    /// Pre-compute a direct FFT-bin → log-band index lookup table.
+    /// `bin_to_band[k] == usize::MAX` means bin k falls outside every band.
+    fn compute_bin_to_band(
+        window_size: usize,
+        num_bins: usize,
+        sample_rate: u32,
+        edges: &[f32],
+    ) -> Vec<usize> {
+        let half = window_size / 2;
+        let sr = sample_rate as f32;
+        let n = window_size as f32;
+        let mut map = vec![usize::MAX; half];
+        for k in 1..half {
+            let fk = k as f32 * sr / n;
+            // Binary search: find the band whose [f_lo, f_hi) contains fk.
+            if edges.len() < 2 || fk < edges[0] || fk >= *edges.last().unwrap_or(&0.0) {
+                continue;
+            }
+            let j = edges.partition_point(|&e| e <= fk).saturating_sub(1);
+            if j < num_bins {
+                map[k] = j;
+            }
+        }
+        map
+    }
+
     pub fn new(window_size: usize, num_bins: usize, sample_rate: u32) -> Self {
         assert!(window_size.is_power_of_two());
         let mut planner = FftPlanner::new();
@@ -120,6 +152,7 @@ impl FftCore {
             let fk = k as f32 * sr as f32 / window_size as f32;
             a_weights[k] = a_weight(fk).powf(A_WEIGHT_BLEND);
         }
+        let bin_to_band = Self::compute_bin_to_band(window_size, num_bins, sr, &edges);
         Self {
             fft,
             window,
@@ -132,6 +165,8 @@ impl FftCore {
             band_linear: vec![0.0f32; num_bins],
             band_db: vec![0.0f32; num_bins],
             a_weights,
+            bin_to_band,
+            band_count: vec![0u32; num_bins],
         }
     }
 
@@ -150,6 +185,8 @@ impl FftCore {
             let fk = k as f32 * sr as f32 / self.window_size as f32;
             self.a_weights[k] = a_weight(fk).powf(A_WEIGHT_BLEND);
         }
+        self.bin_to_band =
+            Self::compute_bin_to_band(self.window_size, self.num_bins, sr, &self.log_bin_edges);
     }
 
     pub fn window_size(&self) -> usize {
@@ -165,7 +202,7 @@ impl FftCore {
         debug_assert_eq!(mono_window.len(), self.window_size);
         debug_assert_eq!(out_bins.len(), self.num_bins);
         let n = self.window_size;
-        let sr = self.sample_rate.max(1) as f32;
+        // sr is no longer needed per-frame: band mapping is pre-computed in bin_to_band.
 
         for i in 0..n {
             self.scratch[i] = Complex::new(mono_window[i] * self.window[i], 0.0);
@@ -181,25 +218,23 @@ impl FftCore {
         self.linear_fft[0] = 0.0;
 
         let edges = &self.log_bin_edges;
-        for j in 0..self.num_bins {
-            let f_lo = edges[j];
-            let f_hi = edges[j + 1];
-            let mut sum = 0.0f32;
-            let mut count = 0u32;
-            for k in 1..half {
-                let fk = k as f32 * sr / n as f32;
-                if fk >= f_lo && fk < f_hi {
-                    sum += self.linear_fft[k];
-                    count += 1;
-                }
+        // Single O(n_fft) pass using the pre-computed bin→band LUT.
+        self.band_linear.fill(0.0);
+        self.band_count.fill(0);
+        for k in 1..half {
+            let j = self.bin_to_band[k];
+            if j < self.num_bins {
+                self.band_linear[j] += self.linear_fft[k];
+                self.band_count[j] += 1;
             }
-            let mag = if count > 0 {
-                sum / count as f32
-            } else {
-                0.0
-            };
-            self.band_linear[j] = mag;
         }
+        for j in 0..self.num_bins {
+            if self.band_count[j] > 0 {
+                self.band_linear[j] /= self.band_count[j] as f32;
+            }
+            // else band_linear[j] remains 0 from fill()
+        }
+        let _ = edges; // edges used only during LUT build, not per-frame
         linear_bands_to_relative_bins(&self.band_linear, &mut self.band_db, out_bins);
     }
 

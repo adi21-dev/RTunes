@@ -10,13 +10,12 @@ use ratatui::Frame;
 
 use crate::config::Theme;
 use crate::config::theme::BarStyle;
-use crate::tui::color::{dim_with_intensity, lerp_color, parse_hex};
+use crate::tui::color::{dim_with_intensity, lerp_color, parse_hex, GradientLut};
 use crate::visualizer::smoothing::{
-    apply_spectral_smoothing_with_scratch, asymmetric_ema, DISPLAY_ATTACK, DISPLAY_RELEASE,
+    apply_spectral_smoothing_with_scratch, band_tau, ema_dt,
 };
 use crate::visualizer::VisualizerData;
 
-use super::canvas::gradient_color;
 
 /// Adaptive bar count from terminal width (plan: 32 / 48 / 64).
 pub fn bars_for_width(w: u16) -> usize {
@@ -59,6 +58,12 @@ pub struct Spectrum {
     display_ema: Vec<f32>,
     /// Scratch buffer for spectral smoothing — reused every frame (no alloc).
     smooth_scratch: Vec<f32>,
+    /// Pre-allocated bar height buffer — avoids a per-frame Vec allocation.
+    heights: Vec<f32>,
+    /// Cached gradient LUT for the active theme (rebuilt only when stops change).
+    lut: Option<GradientLut>,
+    /// Last-seen gradient stop strings — used for LUT invalidation.
+    lut_stops: Vec<String>,
 }
 
 impl Spectrum {
@@ -70,6 +75,9 @@ impl Spectrum {
             decimated_peak: Vec::new(),
             display_ema: Vec::new(),
             smooth_scratch: Vec::new(),
+            heights: Vec::new(),
+            lut: None,
+            lut_stops: Vec::new(),
         }
     }
 
@@ -86,6 +94,7 @@ impl Spectrum {
             self.decimated_peak.resize(bars, 0.0);
             self.display_ema.resize(bars, 0.0);
             self.display_ema.fill(0.0);
+            self.heights.resize(bars, 0.0);
             // smooth_scratch is resized on demand inside apply_spectral_smoothing_with_scratch.
         }
     }
@@ -97,6 +106,7 @@ impl Spectrum {
         heights: &[f32],
         _peaks: &[f32],
         theme: &Theme,
+        lut: &GradientLut,
         mirror_y: bool,
         dim: bool,
         rounded: bool,
@@ -109,7 +119,6 @@ impl Spectrum {
         }
         let bars = heights.len().max(1);
         let bg = parse_hex(&theme.background);
-        let stops = &theme.viz.gradient;
 
         let mut lines: Vec<Line> = Vec::with_capacity(h);
         for row_ix in 0..h {
@@ -126,7 +135,7 @@ impl Spectrum {
                 let bar_i = bar_i.min(bars - 1);
                 let bar_h = heights[bar_i] * h as f32;
                 let height_ratio = (bar_h / h as f32).clamp(0.0, 1.0);
-                let mut grad_c = gradient_color(stops, height_ratio);
+                let mut grad_c = lut.get(height_ratio);
                 grad_c = dim_with_intensity(grad_c, bg, viz_intensity);
                 if dim {
                     grad_c = lerp_color(grad_c, bg, 0.5);
@@ -169,6 +178,7 @@ impl Spectrum {
         heights: &[f32],
         _peaks: &[f32],
         theme: &Theme,
+        lut: GradientLut,
         mirror_y: bool,
         dim: bool,
         viz_intensity: f32,
@@ -177,7 +187,6 @@ impl Spectrum {
         let h = area.height.max(1) as f64;
         let bars = heights.len().max(1);
         let bg = parse_hex(&theme.background);
-        let stops = theme.viz.gradient.clone();
         let heights_owned = heights.to_vec();
 
         let canvas = Canvas::default()
@@ -192,7 +201,7 @@ impl Spectrum {
                     let cx = (x0 + x1) * 0.5;
                     let bar_h = heights_owned[i] as f64 * h;
                     let height_ratio = (bar_h / h).clamp(0.0, 1.0) as f32;
-                    let mut c = gradient_color(&stops, height_ratio);
+                    let mut c = lut.get(height_ratio);
                     c = dim_with_intensity(c, bg, viz_intensity);
                     if dim {
                         c = lerp_color(c, bg, 0.5);
@@ -236,6 +245,14 @@ impl crate::visualizer::Visualizer for Spectrum {
         let bars = bars_for_width(area.width);
         self.ensure_scratch(bars);
 
+        // Rebuild gradient LUT if theme stops have changed (typically only on theme switch).
+        let stops = &theme.viz.gradient;
+        if self.lut.is_none() || *stops != self.lut_stops {
+            self.lut = Some(GradientLut::new(stops));
+            self.lut_stops = stops.clone();
+        }
+        let lut = self.lut.as_ref().expect("lut just initialised");
+
         let empty = VisualizerData::empty(64);
         let d = data.unwrap_or(&empty);
         let bins_cur = &d.bins_smoothed[..];
@@ -249,16 +266,15 @@ impl crate::visualizer::Visualizer for Spectrum {
         apply_spectral_smoothing_with_scratch(&mut self.decimated_cur, &mut self.smooth_scratch);
         apply_spectral_smoothing_with_scratch(&mut self.decimated_prev, &mut self.smooth_scratch);
 
-        let mut heights = vec![0.0f32; bars];
+        // Per-bar frequency-dependent EMA: bass bars sustain, treble bars snap.
+        // Uses actual FFT period as dt so smoothing is frame-rate-independent.
+        let dt = d.fft_period.as_secs_f32().max(1.0 / 120.0);
         for i in 0..bars {
             let target = self.decimated_prev[i].mul_add(1.0 - t, self.decimated_cur[i] * t);
-            self.display_ema[i] = asymmetric_ema(
-                self.display_ema[i],
-                target,
-                DISPLAY_ATTACK,
-                DISPLAY_RELEASE,
-            );
-            heights[i] = self.display_ema[i].clamp(0.0, 1.0);
+            let (tau_a, tau_r) = band_tau(i, bars);
+            let tau = if target > self.display_ema[i] { tau_a } else { tau_r };
+            self.display_ema[i] = ema_dt(self.display_ema[i], target, tau, dt);
+            self.heights[i] = self.display_ema[i].clamp(0.0, 1.0);
         }
 
         if fullscreen && area.height >= 4 {
@@ -274,9 +290,10 @@ impl crate::visualizer::Visualizer for Spectrum {
                     self.render_dots(
                         f,
                         chunks[0],
-                        &heights,
+                        &self.heights,
                         &self.decimated_peak,
                         theme,
+                        lut.clone(),
                         false,
                         false,
                         rctx.viz_intensity,
@@ -284,9 +301,10 @@ impl crate::visualizer::Visualizer for Spectrum {
                     self.render_dots(
                         f,
                         chunks[1],
-                        &heights,
+                        &self.heights,
                         &self.decimated_peak,
                         theme,
+                        lut.clone(),
                         true,
                         true,
                         rctx.viz_intensity,
@@ -296,9 +314,10 @@ impl crate::visualizer::Visualizer for Spectrum {
                     self.render_block_bars(
                         f,
                         chunks[0],
-                        &heights,
+                        &self.heights,
                         &self.decimated_peak,
                         theme,
+                        lut,
                         false,
                         false,
                         false,
@@ -307,9 +326,10 @@ impl crate::visualizer::Visualizer for Spectrum {
                     self.render_block_bars(
                         f,
                         chunks[1],
-                        &heights,
+                        &self.heights,
                         &self.decimated_peak,
                         theme,
+                        lut,
                         true,
                         true,
                         false,
@@ -320,9 +340,10 @@ impl crate::visualizer::Visualizer for Spectrum {
                     self.render_block_bars(
                         f,
                         chunks[0],
-                        &heights,
+                        &self.heights,
                         &self.decimated_peak,
                         theme,
+                        lut,
                         false,
                         false,
                         true,
@@ -331,9 +352,10 @@ impl crate::visualizer::Visualizer for Spectrum {
                     self.render_block_bars(
                         f,
                         chunks[1],
-                        &heights,
+                        &self.heights,
                         &self.decimated_peak,
                         theme,
+                        lut,
                         true,
                         true,
                         true,
@@ -347,9 +369,10 @@ impl crate::visualizer::Visualizer for Spectrum {
                     self.render_dots(
                         f,
                         area,
-                        &heights,
+                        &self.heights,
                         &self.decimated_peak,
                         theme,
+                        lut.clone(),
                         false,
                         false,
                         rctx.viz_intensity,
@@ -359,9 +382,10 @@ impl crate::visualizer::Visualizer for Spectrum {
                     self.render_block_bars(
                         f,
                         area,
-                        &heights,
+                        &self.heights,
                         &self.decimated_peak,
                         theme,
+                        lut,
                         false,
                         false,
                         false,
@@ -372,9 +396,10 @@ impl crate::visualizer::Visualizer for Spectrum {
                     self.render_block_bars(
                         f,
                         area,
-                        &heights,
+                        &self.heights,
                         &self.decimated_peak,
                         theme,
+                        lut,
                         false,
                         false,
                         true,
