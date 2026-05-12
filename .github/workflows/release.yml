@@ -10,24 +10,64 @@ env:
 
 jobs:
   build:
-    name: Build (${{ matrix.target }})
+    name: Build (${{ matrix.pretty_name }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
+          # ── Windows ────────────────────────────────────────────────────────
           - target: x86_64-pc-windows-msvc
             os: windows-latest
+            pretty_name: windows-x86_64
             archive_ext: zip
+            ytdlp_asset: yt-dlp.exe
+            ffmpeg_asset: win64
+            use_cross: 'false'
+
+          - target: aarch64-pc-windows-msvc
+            os: windows-latest
+            pretty_name: windows-aarch64
+            archive_ext: zip
+            ytdlp_asset: yt-dlp.exe
+            # No static aarch64 Windows ffmpeg build available; users install
+            # ffmpeg manually or via winget on ARM64 Windows devices.
+            ffmpeg_asset: none
+            use_cross: 'false'
+
+          # ── Linux ──────────────────────────────────────────────────────────
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
+            pretty_name: linux-x86_64
             archive_ext: tar.gz
+            ytdlp_asset: yt-dlp_linux
+            ffmpeg_asset: linux64
+            use_cross: 'false'
+
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            pretty_name: linux-aarch64
+            archive_ext: tar.gz
+            ytdlp_asset: yt-dlp_linux_aarch64
+            ffmpeg_asset: linuxarm64
+            use_cross: 'true'
+
+          # ── macOS ──────────────────────────────────────────────────────────
           - target: x86_64-apple-darwin
             os: macos-13
+            pretty_name: macos-x86_64
             archive_ext: tar.gz
+            ytdlp_asset: yt-dlp_macos
+            ffmpeg_asset: macos
+            use_cross: 'false'
+
           - target: aarch64-apple-darwin
             os: macos-latest
+            pretty_name: macos-aarch64
             archive_ext: tar.gz
+            ytdlp_asset: yt-dlp_macos
+            ffmpeg_asset: macos
+            use_cross: 'false'
 
     steps:
       - uses: actions/checkout@v4
@@ -44,48 +84,181 @@ jobs:
         if: runner.os == 'Linux'
         run: sudo apt-get update -qq && sudo apt-get install -y libasound2-dev libwayland-dev
 
+      # cross provides a Docker-based sysroot for aarch64-unknown-linux-gnu,
+      # avoiding the need to manually install a cross-linker and aarch64 headers.
+      - name: Install cross
+        if: matrix.use_cross == 'true'
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cross
+
+      - name: Build release binary (cross)
+        if: matrix.use_cross == 'true'
+        run: cross build --release --target ${{ matrix.target }}
+
       - name: Build release binary
+        if: matrix.use_cross != 'true'
         run: cargo build --release --target ${{ matrix.target }}
 
-      - name: Stage artifact (Unix)
+      # ── Download yt-dlp ─────────────────────────────────────────────────
+
+      - name: Download yt-dlp (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          curl -fsSL \
+            "https://github.com/yt-dlp/yt-dlp/releases/latest/download/${{ matrix.ytdlp_asset }}" \
+            -o /tmp/yt-dlp-bin
+          chmod +x /tmp/yt-dlp-bin
+          # yt-dlp is released under the Unlicense.
+          curl -fsSL \
+            "https://raw.githubusercontent.com/yt-dlp/yt-dlp/master/LICENSE" \
+            -o /tmp/ytdlp-license.txt
+
+      - name: Download yt-dlp (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Invoke-WebRequest `
+            "https://github.com/yt-dlp/yt-dlp/releases/latest/download/${{ matrix.ytdlp_asset }}" `
+            -OutFile "$env:TEMP\yt-dlp.exe"
+          # yt-dlp is released under the Unlicense.
+          Invoke-WebRequest `
+            "https://raw.githubusercontent.com/yt-dlp/yt-dlp/master/LICENSE" `
+            -OutFile "$env:TEMP\ytdlp-license.txt"
+
+      # ── Download ffmpeg ──────────────────────────────────────────────────
+
+      # BtbN publishes static GPL builds for linux64 and linuxarm64.
+      # Archive: ffmpeg-master-latest-<asset>-gpl.tar.xz
+      # Contains: ffmpeg-master-latest-<asset>-gpl/bin/ffmpeg
+      - name: Download ffmpeg (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          ASSET="${{ matrix.ffmpeg_asset }}"
+          ARCHIVE="ffmpeg-master-latest-${ASSET}-gpl.tar.xz"
+          curl -fsSL \
+            "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/${ARCHIVE}" \
+            -o /tmp/ffmpeg.tar.xz
+          tar -xJf /tmp/ffmpeg.tar.xz -C /tmp
+          DIR="/tmp/ffmpeg-master-latest-${ASSET}-gpl"
+          cp "${DIR}/bin/ffmpeg" /tmp/ffmpeg-bin
+          chmod +x /tmp/ffmpeg-bin
+          # BtbN GPL builds ship a LICENSE.txt in the archive root.
+          cp "${DIR}/LICENSE.txt" /tmp/ffmpeg-license.txt
+
+      # Homebrew is pre-installed on both macos-13 (Intel) and macos-latest (ARM64)
+      # runners and produces a native binary for the runner's architecture.
+      - name: Download ffmpeg (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          brew install ffmpeg --quiet
+          cp "$(which ffmpeg)" /tmp/ffmpeg-bin
+          chmod +x /tmp/ffmpeg-bin
+          # Homebrew's ffmpeg formula is built with --enable-gpl (GPL v2+).
+          # Download the GPL v2 license text from the upstream FFmpeg repo.
+          curl -fsSL \
+            "https://raw.githubusercontent.com/FFmpeg/FFmpeg/master/COPYING.GPLv2" \
+            -o /tmp/ffmpeg-license.txt
+
+      # BtbN win64 archive: ffmpeg-master-latest-win64-gpl.zip
+      # Contains: ffmpeg-master-latest-win64-gpl\bin\ffmpeg.exe
+      - name: Download ffmpeg (Windows)
+        if: runner.os == 'Windows' && matrix.ffmpeg_asset != 'none'
+        shell: pwsh
+        run: |
+          $url = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip"
+          Invoke-WebRequest $url -OutFile "$env:TEMP\ffmpeg.zip"
+          Expand-Archive "$env:TEMP\ffmpeg.zip" -DestinationPath "$env:TEMP\ffmpeg-extract" -Force
+          $root = Get-ChildItem "$env:TEMP\ffmpeg-extract" -Directory | Select-Object -First 1
+          $exe = Get-ChildItem $root.FullName -Recurse -Filter "ffmpeg.exe" `
+            | Where-Object { $_.DirectoryName -like "*\bin" } `
+            | Select-Object -First 1
+          Copy-Item $exe.FullName "$env:TEMP\ffmpeg.exe"
+          # BtbN GPL builds ship a LICENSE.txt in the archive root.
+          $lic = Join-Path $root.FullName "LICENSE.txt"
+          if (Test-Path $lic) { Copy-Item $lic "$env:TEMP\ffmpeg-license.txt" }
+
+      # ── Stage + archive (Unix) ──────────────────────────────────────────
+
+      - name: Stage and archive (Unix)
         if: runner.os != 'Windows'
         shell: bash
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
+          PRETTY="${{ matrix.pretty_name }}"
           TARGET="${{ matrix.target }}"
-          DIST_NAME="rtunes-v${VERSION}-${TARGET}"
+          DIST_NAME="rtunes-v${VERSION}-${PRETTY}"
           STAGE="dist/${DIST_NAME}"
           mkdir -p "$STAGE/deps"
           cp "target/$TARGET/release/rtunes" "$STAGE/rtunes"
           cp README.md "$STAGE/README.md"
-          printf 'Place yt-dlp and ffmpeg here (or install to PATH).\nSee README.md -> deps/ folder.\n' > "$STAGE/deps/README.txt"
+          cp /tmp/yt-dlp-bin "$STAGE/deps/yt-dlp"
+          [ -f /tmp/ytdlp-license.txt ]  && cp /tmp/ytdlp-license.txt  "$STAGE/deps/YTDLP_LICENSE"
+          [ -f /tmp/ffmpeg-bin ]         && cp /tmp/ffmpeg-bin          "$STAGE/deps/ffmpeg"
+          [ -f /tmp/ffmpeg-license.txt ] && cp /tmp/ffmpeg-license.txt "$STAGE/deps/FFMPEG_LICENSE.txt"
           tar -czf "dist/${DIST_NAME}.tar.gz" -C dist "$DIST_NAME"
           echo "ARTIFACT=dist/${DIST_NAME}.tar.gz" >> "$GITHUB_ENV"
 
-      - name: Stage artifact (Windows)
+      # ── Stage + archive (Windows) ────────────────────────────────────────
+
+      - name: Stage and archive (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $VERSION = $env:GITHUB_REF_NAME -replace '^v',''
-          $TARGET = "${{ matrix.target }}"
-          $DIST_NAME = "rtunes-v${VERSION}-${TARGET}"
-          $STAGE = "dist\$DIST_NAME"
+          $VERSION  = $env:GITHUB_REF_NAME -replace '^v', ''
+          $PRETTY   = "${{ matrix.pretty_name }}"
+          $TARGET   = "${{ matrix.target }}"
+          $DIST_NAME = "rtunes-v${VERSION}-${PRETTY}"
+          $STAGE    = "dist\$DIST_NAME"
           New-Item -ItemType Directory -Force -Path "$STAGE\deps" | Out-Null
           Copy-Item "target\$TARGET\release\rtunes.exe" "$STAGE\rtunes.exe"
           Copy-Item "README.md" "$STAGE\README.md"
-          Set-Content "$STAGE\deps\README.txt" "Place yt-dlp.exe and ffmpeg.exe here (or install to PATH).`nSee README.md -> deps/ folder."
+          Copy-Item "$env:TEMP\yt-dlp.exe" "$STAGE\deps\yt-dlp.exe"
+          if (Test-Path "$env:TEMP\ytdlp-license.txt") {
+            Copy-Item "$env:TEMP\ytdlp-license.txt" "$STAGE\deps\YTDLP_LICENSE.txt"
+          }
+          if (Test-Path "$env:TEMP\ffmpeg.exe") {
+            Copy-Item "$env:TEMP\ffmpeg.exe" "$STAGE\deps\ffmpeg.exe"
+          }
+          if (Test-Path "$env:TEMP\ffmpeg-license.txt") {
+            Copy-Item "$env:TEMP\ffmpeg-license.txt" "$STAGE\deps\FFMPEG_LICENSE.txt"
+          }
           Compress-Archive -Path "$STAGE\*" -DestinationPath "dist\${DIST_NAME}.zip" -Force
           "ARTIFACT=dist\${DIST_NAME}.zip" | Out-File -FilePath $env:GITHUB_ENV -Append
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: rtunes-${{ matrix.target }}
+          name: rtunes-${{ matrix.pretty_name }}
           path: ${{ env.ARTIFACT }}
+
+  checksums:
+    name: Generate checksums
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Generate SHA256 checksums
+        run: |
+          cd artifacts
+          sha256sum * > checksums.txt
+          cat checksums.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: checksums
+          path: artifacts/checksums.txt
 
   release:
     name: Publish GitHub Release
-    needs: build
+    needs: checksums
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -100,3 +273,4 @@ jobs:
         with:
           files: artifacts/**
           generate_release_notes: true
+          draft: true

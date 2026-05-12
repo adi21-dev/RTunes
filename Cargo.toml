@@ -5,7 +5,7 @@ edition = "2021"
 # Docs target Rust 1.95+; MSRV 1.94 for current stable toolchains.
 rust-version = "1.94"
 description = "Terminal-based music player with visualizers"
-license = "MIT OR Apache-2.0"
+license = "MIT"
 
 [dependencies]
 ratatui = "0.29"

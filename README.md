@@ -2,8 +2,6 @@
 
 Terminal music player with **10 audio-reactive visualizers**, a Ratatui library UI, and optional **yt-dlp** downloads. Built in Rust; runs on Windows, macOS, and Linux.
 
-*(Optional: add a screenshot under `docs/` and link it here.)*
-
 ## Install
 
 ### From source
