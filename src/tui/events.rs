@@ -15,9 +15,11 @@ use crate::app::state::{
 use crate::cli::resolve_library_roots;
 use crate::config::theme::normalize_theme_key;
 use crate::config::{resolve_active_theme, FetcherSettings, RtunesConfig, Theme};
-use crate::fetcher::{validate_url, deps_dir, download_ffmpeg, download_ytdlp,
-    ffmpeg_auto_download_supported, ffmpeg_manual_instructions,
-    try_resolve_tools, FetchEvent, FetchOpts, FetcherPool, MissingTool, PickerEvent, PickerTarget};
+use crate::fetcher::{
+    deps_dir, download_ffmpeg, download_ytdlp, ffmpeg_auto_download_supported,
+    ffmpeg_manual_instructions, try_resolve_tools, validate_url, FetchEvent, FetchOpts,
+    FetcherPool, MissingTool, PickerEvent, PickerTarget,
+};
 use crate::library::{is_scanning, scan_async, ScanEvent};
 
 const BUILTIN_THEME_ORDER: &[&str] = &["synthwave", "dracula", "nord", "tokyo_night", "monochrome"];
@@ -439,7 +441,8 @@ fn handle_download_enter(
                     g.download_progress = Some(0.0);
                     g.download_stage = Some("Starting\u{2026}".into());
                 }
-                deps.fetch_pool.submit(url, fetch_opts, deps.fetch_tx.clone());
+                deps.fetch_pool
+                    .submit(url, fetch_opts, deps.fetch_tx.clone());
             }
         }
     }
@@ -855,9 +858,15 @@ fn dispatch_key(
 
                             // Update shared fetcher settings so the live fetcher sees the new paths.
                             {
-                                let mut fs = fetcher_settings_arc.lock().unwrap_or_else(|p| p.into_inner());
-                                if needs_ytdlp { fs.ytdlp_path = "auto".into(); }
-                                if needs_ffmpeg { fs.ffmpeg_path = "auto".into(); }
+                                let mut fs = fetcher_settings_arc
+                                    .lock()
+                                    .unwrap_or_else(|p| p.into_inner());
+                                if needs_ytdlp {
+                                    fs.ytdlp_path = "auto".into();
+                                }
+                                if needs_ffmpeg {
+                                    fs.ffmpeg_path = "auto".into();
+                                }
                             }
                             {
                                 let mut g = state2.lock().unwrap_or_else(|p| p.into_inner());

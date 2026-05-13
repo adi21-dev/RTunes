@@ -12,8 +12,7 @@ use crate::app;
 use crate::audio::{AudioPlayer, RodioBackend};
 use crate::config::{self, RtunesConfig, Theme};
 use crate::fetcher::{
-    FetchEvent, FetchOpts, Fetcher, FetcherPool, MissingTool, PickerEvent,
-    YtDlpFetcher,
+    FetchEvent, FetchOpts, Fetcher, FetcherPool, MissingTool, PickerEvent, YtDlpFetcher,
 };
 use crate::library::{scan_config_paths, scan_paths};
 use crate::tui;
@@ -296,9 +295,8 @@ pub fn dispatch(cli: &Cli, cfg_path: &Path, cfg: &mut RtunesConfig) -> anyhow::R
             output,
         }) => {
             use crate::fetcher::{
-                deps_dir, download_ffmpeg, download_ytdlp,
-                ffmpeg_auto_download_supported, ffmpeg_manual_instructions,
-                try_resolve_tools, validate_url,
+                deps_dir, download_ffmpeg, download_ytdlp, ffmpeg_auto_download_supported,
+                ffmpeg_manual_instructions, try_resolve_tools, validate_url,
             };
             use std::io::{self, BufRead, Write};
 
@@ -315,12 +313,20 @@ pub fn dispatch(cli: &Cli, cfg_path: &Path, cfg: &mut RtunesConfig) -> anyhow::R
                 eprint!("{list} not found. Download automatically? (~120MB) [Y/n]: ");
                 let _ = io::stderr().flush();
                 let stdin = io::stdin();
-                let answer = stdin.lock().lines().next().and_then(|l| l.ok()).unwrap_or_default();
+                let answer = stdin
+                    .lock()
+                    .lines()
+                    .next()
+                    .and_then(|l| l.ok())
+                    .unwrap_or_default();
                 if !matches!(answer.trim().to_lowercase().as_str(), "y" | "yes" | "") {
-                    anyhow::bail!("{list} is required. Install manually or use --ytdlp-path / --ffmpeg-path.");
+                    anyhow::bail!(
+                        "{list} is required. Install manually or use --ytdlp-path / --ffmpeg-path."
+                    );
                 }
 
-                let dd = deps_dir().ok_or_else(|| anyhow::anyhow!("Could not determine deps/ directory"))?;
+                let dd = deps_dir()
+                    .ok_or_else(|| anyhow::anyhow!("Could not determine deps/ directory"))?;
 
                 for tool in &missing {
                     match tool {
