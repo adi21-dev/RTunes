@@ -2,5 +2,5 @@
 pre-build = [
     "dpkg --add-architecture arm64",
     "apt-get update -qq",
-    "apt-get install -y --no-install-recommends libwayland-dev:arm64 libasound2-dev:arm64",
+    "apt-get install -y --no-install-recommends libwayland-dev:arm64 libasound2-dev:arm64 libssl-dev:arm64",
 ]
