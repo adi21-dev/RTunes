@@ -12,7 +12,7 @@ use crate::app;
 use crate::audio::{AudioPlayer, RodioBackend};
 use crate::config::{self, RtunesConfig, Theme};
 use crate::fetcher::{
-    FetchEvent, FetchOpts, Fetcher, FetcherPool, MissingTool, PickerEvent, PickerTarget,
+    FetchEvent, FetchOpts, Fetcher, FetcherPool, MissingTool, PickerEvent,
     YtDlpFetcher,
 };
 use crate::library::{scan_config_paths, scan_paths};
@@ -295,29 +295,61 @@ pub fn dispatch(cli: &Cli, cfg_path: &Path, cfg: &mut RtunesConfig) -> anyhow::R
             format: format_arg,
             output,
         }) => {
-            use crate::fetcher::{try_resolve_tools, validate_url};
-            // Pre-flight: make sure both binaries are available; open picker for each missing one.
+            use crate::fetcher::{
+                deps_dir, download_ffmpeg, download_ytdlp,
+                ffmpeg_auto_download_supported, ffmpeg_manual_instructions,
+                try_resolve_tools, validate_url,
+            };
+            use std::io::{self, BufRead, Write};
+
+            // Pre-flight: check whether yt-dlp and ffmpeg are available.
             if let Err(missing) = try_resolve_tools(&cfg.fetcher) {
+                let names: Vec<&str> = missing
+                    .iter()
+                    .map(|t| match t {
+                        MissingTool::YtDlp => "yt-dlp",
+                        MissingTool::Ffmpeg => "ffmpeg",
+                    })
+                    .collect();
+                let list = names.join(" and ");
+                eprint!("{list} not found. Download automatically? (~120MB) [Y/n]: ");
+                let _ = io::stderr().flush();
+                let stdin = io::stdin();
+                let answer = stdin.lock().lines().next().and_then(|l| l.ok()).unwrap_or_default();
+                if !matches!(answer.trim().to_lowercase().as_str(), "y" | "yes" | "") {
+                    anyhow::bail!("{list} is required. Install manually or use --ytdlp-path / --ffmpeg-path.");
+                }
+
+                let dd = deps_dir().ok_or_else(|| anyhow::anyhow!("Could not determine deps/ directory"))?;
+
                 for tool in &missing {
-                    let (name, target) = match tool {
-                        MissingTool::YtDlp => ("yt-dlp", PickerTarget::YtDlp),
-                        MissingTool::Ffmpeg => ("ffmpeg", PickerTarget::Ffmpeg),
-                    };
-                    eprintln!("{name} not found in PATH or deps/. Please select the binary:");
-                    if let Some(picked) = crate::fetcher::pick_binary_blocking(target, None) {
-                        let path_str = picked.to_string_lossy().into_owned();
-                        match tool {
-                            MissingTool::YtDlp => cfg.fetcher.ytdlp_path = path_str,
-                            MissingTool::Ffmpeg => cfg.fetcher.ffmpeg_path = path_str,
+                    match tool {
+                        MissingTool::YtDlp => {
+                            eprintln!("Downloading yt-dlp…");
+                            download_ytdlp(&dd, |p| {
+                                eprint!("\r  {:>5.1}%", (p * 100.0).min(100.0));
+                                let _ = io::stderr().flush();
+                            })
+                            .map_err(|e| anyhow::anyhow!(e))?;
+                            eprintln!("\r  yt-dlp ready.           ");
                         }
-                        config::save(cfg_path, cfg).map_err(|e| anyhow::anyhow!(e.to_string()))?;
-                        eprintln!("{name} path saved to config.");
-                    } else {
-                        anyhow::bail!(
-                            "{name} is required but was not found and no path was selected."
-                        );
+                        MissingTool::Ffmpeg => {
+                            if !ffmpeg_auto_download_supported() {
+                                anyhow::bail!("ffmpeg not found. {}", ffmpeg_manual_instructions());
+                            }
+                            eprintln!("Downloading ffmpeg…");
+                            download_ffmpeg(&dd, |p| {
+                                eprint!("\r  {:>5.1}%", (p * 100.0).min(100.0));
+                                let _ = io::stderr().flush();
+                            })
+                            .map_err(|e| anyhow::anyhow!(e))?;
+                            eprintln!("\r  ffmpeg ready.           ");
+                        }
                     }
                 }
+                // Reset to "auto" so resolve_binary finds the freshly downloaded binaries.
+                cfg.fetcher.ytdlp_path = "auto".into();
+                cfg.fetcher.ffmpeg_path = "auto".into();
             }
 
             let fmt = format_arg
@@ -360,6 +392,10 @@ pub fn dispatch(cli: &Cli, cfg_path: &Path, cfg: &mut RtunesConfig) -> anyhow::R
                         eprintln!("\n{m}");
                         std::process::exit(1);
                     }
+                    // Deps events don't occur in CLI mode (deps are resolved above).
+                    FetchEvent::DepsPrompt(_)
+                    | FetchEvent::DepsDownloading { .. }
+                    | FetchEvent::DepsReady => {}
                 }
             }
         }

@@ -1388,6 +1388,19 @@ pub fn run(
                     g.download_stage = None;
                     g.message = Some((msg, Instant::now()));
                 }
+                FetchEvent::DepsDownloading { tool, progress } => {
+                    let mut g = lock_shared(&state);
+                    g.download_stage = Some(format!("Downloading {tool}…"));
+                    g.download_progress = Some(progress);
+                }
+                FetchEvent::DepsReady => {
+                    // Progress/stage will be updated when the actual fetch starts.
+                    // Nothing extra needed here; the download thread already submitted
+                    // the pending URL to the pool.
+                }
+                // DepsPrompt is sent to prompt the user; the TUI handles it via
+                // deps_prompt in AppState which is set in events.rs before this channel.
+                FetchEvent::DepsPrompt(_) => {}
             }
         }
 

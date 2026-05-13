@@ -9,9 +9,11 @@ use std::time::Instant;
 
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use url::Url;
 
 use crate::config::RtunesConfig;
 use crate::config::Theme;
+use crate::fetcher::{FetchOpts, MissingTool};
 use crate::utils::expand_path;
 
 /// One indexed audio file (metadata from Lofty when available).
@@ -246,6 +248,11 @@ pub struct AppState {
     /// Mirrors `config.app.download_dir`; kept in sync when settings change.
     pub settings_download_dir: String,
     pub quit: bool,
+    /// When `Some`, the user is being asked whether to auto-download missing deps.
+    /// The Vec lists the tools that are missing.
+    pub deps_prompt: Option<Vec<MissingTool>>,
+    /// URL + opts waiting to be submitted once deps are available.
+    pub pending_fetch: Option<(Url, FetchOpts)>,
 }
 
 impl AppState {
@@ -307,6 +314,8 @@ impl AppState {
             settings_ffmpeg_value: config.fetcher.ffmpeg_path.clone(),
             settings_download_dir: config.app.download_dir.clone(),
             quit: false,
+            deps_prompt: None,
+            pending_fetch: None,
         }
     }
 }

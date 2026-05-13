@@ -38,10 +38,17 @@ Use `/` to search, **Space** to play/pause, **v** / **V** to cycle visualizers, 
 
 ## `deps/` folder (yt-dlp + ffmpeg)
 
-Place **`yt-dlp`** and **`ffmpeg`** next to the executable under `deps/`, or install them on your **PATH**. RTunes resolves `PATH` first, then `<exe_dir>/deps/`.
+RTunes auto-downloads **yt-dlp** and **ffmpeg** on first use if they aren't found. They are saved to `deps/` beside the executable and reused automatically.
 
-On Windows: `deps\yt-dlp.exe`, `deps\ffmpeg.exe`.  
-Configure explicit paths in `config.yaml` under `fetcher.ytdlp_path` / `fetcher.ffmpeg_path` (`"auto"` = search).
+You can also install them manually:
+
+| Platform | yt-dlp | ffmpeg |
+|---|---|---|
+| **Windows** | `winget install yt-dlp.yt-dlp` | `winget install Gyan.FFmpeg` |
+| **macOS** | `brew install yt-dlp` | `brew install ffmpeg` |
+| **Linux** | `sudo apt install yt-dlp` | `sudo apt install ffmpeg` |
+
+Or set explicit paths in `config.yaml` under `fetcher.ytdlp_path` / `fetcher.ffmpeg_path` (`"auto"` = search `deps/` then PATH).
 
 ## Commands
 

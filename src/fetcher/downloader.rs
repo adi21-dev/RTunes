@@ -20,6 +20,12 @@ pub enum FetchEvent {
     Progress(f32),
     Done(PathBuf),
     Failed(String),
+    /// yt-dlp / ffmpeg not found; user must confirm before auto-download begins.
+    DepsPrompt(Vec<MissingTool>),
+    /// A dep binary is being downloaded; progress in [0.0, 1.0].
+    DepsDownloading { tool: String, progress: f32 },
+    /// All required deps are now present; the pending fetch can be retried.
+    DepsReady,
 }
 
 /// Per-download options (format string passed to yt-dlp, output directory for artifacts).
