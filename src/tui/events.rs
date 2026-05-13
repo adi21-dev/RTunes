@@ -15,7 +15,9 @@ use crate::app::state::{
 use crate::cli::resolve_library_roots;
 use crate::config::theme::normalize_theme_key;
 use crate::config::{resolve_active_theme, FetcherSettings, RtunesConfig, Theme};
-use crate::fetcher::{validate_url, FetchEvent, FetchOpts, FetcherPool, PickerEvent, PickerTarget};
+use crate::fetcher::{validate_url, deps_dir, download_ffmpeg, download_ytdlp,
+    ffmpeg_auto_download_supported, ffmpeg_manual_instructions,
+    try_resolve_tools, FetchEvent, FetchOpts, FetcherPool, MissingTool, PickerEvent, PickerTarget};
 use crate::library::{is_scanning, scan_async, ScanEvent};
 
 const BUILTIN_THEME_ORDER: &[&str] = &["synthwave", "dracula", "nord", "tokyo_night", "monochrome"];
@@ -416,19 +418,29 @@ fn handle_download_enter(
                 let c = lock_shared(&deps.config);
                 (c.fetcher.default_format.clone(), download_output_dir(&c))
             };
-            {
+            let fetch_opts = FetchOpts {
+                format: fmt,
+                output_dir: out_dir,
+            };
+            // Pre-flight: check whether yt-dlp and ffmpeg are available.
+            let fetcher_settings = lock_shared(&deps.fetcher_settings).clone();
+            if let Err(missing) = try_resolve_tools(&fetcher_settings) {
+                // Store the pending fetch and show a consent prompt instead of failing.
                 let mut g = lock_shared(state);
-                g.download_progress = Some(0.0);
-                g.download_stage = Some("Starting…".into());
+                g.pending_fetch = Some((url, fetch_opts));
+                g.deps_prompt = Some(missing);
+                set_toast(
+                    &mut g,
+                    "yt-dlp/ffmpeg not found. Press Y to auto-download (~120MB) or N to cancel.",
+                );
+            } else {
+                {
+                    let mut g = lock_shared(state);
+                    g.download_progress = Some(0.0);
+                    g.download_stage = Some("Starting\u{2026}".into());
+                }
+                deps.fetch_pool.submit(url, fetch_opts, deps.fetch_tx.clone());
             }
-            deps.fetch_pool.submit(
-                url,
-                FetchOpts {
-                    format: fmt,
-                    output_dir: out_dir,
-                },
-                deps.fetch_tx.clone(),
-            );
         }
     }
     Ok(())
@@ -772,6 +784,112 @@ fn dispatch_key(
             _ => {}
         },
         InputMode::Normal => {
+            // Handle deps consent prompt (Y/N) before anything else.
+            if app.deps_prompt.is_some() {
+                match code {
+                    KeyCode::Char('y') | KeyCode::Char('Y') => {
+                        let missing = app.deps_prompt.take().unwrap_or_default();
+                        let pending = app.pending_fetch.take();
+                        app.download_progress = Some(0.0);
+                        app.download_stage = Some("Preparing dep download…".into());
+                        drop(app);
+
+                        // Spawn a thread that downloads the missing deps and sends
+                        // DepsDownloading progress events, then DepsReady or Failed.
+                        let tx = deps.fetch_tx.clone();
+                        let pool = deps.fetch_pool.clone();
+                        let fetcher_settings_arc = deps.fetcher_settings.clone();
+                        let state2 = state.clone();
+                        std::thread::spawn(move || {
+                            let dd = match deps_dir() {
+                                Some(d) => d,
+                                None => {
+                                    let _ = tx.send(FetchEvent::Failed(
+                                        "Could not determine deps/ directory".into(),
+                                    ));
+                                    return;
+                                }
+                            };
+
+                            let needs_ytdlp = missing.contains(&MissingTool::YtDlp);
+                            let needs_ffmpeg = missing.contains(&MissingTool::Ffmpeg);
+
+                            if needs_ytdlp {
+                                let tx2 = tx.clone();
+                                let res = download_ytdlp(&dd, |p| {
+                                    let _ = tx2.send(FetchEvent::DepsDownloading {
+                                        tool: "yt-dlp".into(),
+                                        progress: p,
+                                    });
+                                });
+                                if let Err(e) = res {
+                                    let _ = tx.send(FetchEvent::Failed(format!(
+                                        "yt-dlp download failed: {e}"
+                                    )));
+                                    return;
+                                }
+                            }
+
+                            if needs_ffmpeg {
+                                if !ffmpeg_auto_download_supported() {
+                                    let _ = tx.send(FetchEvent::Failed(format!(
+                                        "ffmpeg not found. {}",
+                                        ffmpeg_manual_instructions()
+                                    )));
+                                    return;
+                                }
+                                let tx2 = tx.clone();
+                                let res = download_ffmpeg(&dd, |p| {
+                                    let _ = tx2.send(FetchEvent::DepsDownloading {
+                                        tool: "ffmpeg".into(),
+                                        progress: p,
+                                    });
+                                });
+                                if let Err(e) = res {
+                                    let _ = tx.send(FetchEvent::Failed(format!(
+                                        "ffmpeg download failed: {e}"
+                                    )));
+                                    return;
+                                }
+                            }
+
+                            // Update shared fetcher settings so the live fetcher sees the new paths.
+                            {
+                                let mut fs = fetcher_settings_arc.lock().unwrap_or_else(|p| p.into_inner());
+                                if needs_ytdlp { fs.ytdlp_path = "auto".into(); }
+                                if needs_ffmpeg { fs.ffmpeg_path = "auto".into(); }
+                            }
+                            {
+                                let mut g = state2.lock().unwrap_or_else(|p| p.into_inner());
+                                g.download_progress = Some(0.0);
+                                g.download_stage = Some("Starting\u{2026}".into());
+                            }
+
+                            let _ = tx.send(FetchEvent::DepsReady);
+
+                            // Retry the pending fetch if there is one.
+                            if let Some((url, opts)) = pending {
+                                pool.submit(url, opts, tx);
+                            }
+                        });
+                        return Ok(());
+                    }
+                    KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => {
+                        app.deps_prompt = None;
+                        app.pending_fetch = None;
+                        set_toast(
+                            &mut app,
+                            "Download cancelled. Install yt-dlp/ffmpeg or use F2 to set paths.",
+                        );
+                        return Ok(());
+                    }
+                    _ => {
+                        // Swallow other keys while prompt is active.
+                        return Ok(());
+                    }
+                }
+            }
+
             if app.show_help && matches!(code, KeyCode::Esc | KeyCode::Char('?')) {
                 app.show_help = false;
                 return Ok(());
