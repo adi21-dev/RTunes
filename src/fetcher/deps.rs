@@ -104,8 +104,8 @@ where
     // Write to a temp path so a failed download doesn't leave a corrupt file.
     let tmp = dest.with_extension("_dl_tmp");
     {
-        let mut file = fs::File::create(&tmp)
-            .map_err(|e| format!("create {}: {e}", tmp.display()))?;
+        let mut file =
+            fs::File::create(&tmp).map_err(|e| format!("create {}: {e}", tmp.display()))?;
 
         let mut buf = [0u8; 65536];
         let mut downloaded: u64 = 0;
@@ -135,9 +135,7 @@ where
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        let mut perms = fs::metadata(dest)
-            .map_err(|e| e.to_string())?
-            .permissions();
+        let mut perms = fs::metadata(dest).map_err(|e| e.to_string())?.permissions();
         perms.set_mode(0o755);
         fs::set_permissions(dest, perms).map_err(|e| e.to_string())?;
     }
@@ -155,9 +153,7 @@ where
     F: Fn(f32),
 {
     let asset = ytdlp_asset_name();
-    let url = format!(
-        "https://github.com/yt-dlp/yt-dlp/releases/latest/download/{asset}"
-    );
+    let url = format!("https://github.com/yt-dlp/yt-dlp/releases/latest/download/{asset}");
     let dest = dest_dir.join(ytdlp_dest_filename());
     tracing::info!(%url, dest = %dest.display(), "downloading yt-dlp");
     download_to_file(&url, &dest, &on_progress)?;
@@ -174,8 +170,7 @@ pub fn download_ffmpeg<F>(dest_dir: &Path, on_progress: F) -> Result<PathBuf, St
 where
     F: Fn(f32),
 {
-    let asset = ffmpeg_btbn_asset()
-        .ok_or_else(|| ffmpeg_manual_instructions().to_string())?;
+    let asset = ffmpeg_btbn_asset().ok_or_else(|| ffmpeg_manual_instructions().to_string())?;
 
     let dest = dest_dir.join(ffmpeg_dest_filename());
 
@@ -185,8 +180,7 @@ where
         let url = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip";
         let tmp_dir = std::env::temp_dir().join(format!("rtunes-ffmpeg-{}", std::process::id()));
         let zip_path = tmp_dir.join("ffmpeg.zip");
-        fs::create_dir_all(&tmp_dir)
-            .map_err(|e| format!("create tmp dir: {e}"))?;
+        fs::create_dir_all(&tmp_dir).map_err(|e| format!("create tmp dir: {e}"))?;
 
         tracing::info!(%url, "downloading ffmpeg archive (Windows)");
         // Split progress: 0–70% for archive download, 70–100% for extraction.
@@ -214,8 +208,7 @@ where
         // Find ffmpeg.exe inside the extracted tree (under …/bin/ffmpeg.exe).
         let ffmpeg_exe = find_file_recursive(&extract_dir, "ffmpeg.exe")
             .ok_or_else(|| "ffmpeg.exe not found in extracted archive".to_string())?;
-        fs::copy(&ffmpeg_exe, &dest)
-            .map_err(|e| format!("copy ffmpeg.exe: {e}"))?;
+        fs::copy(&ffmpeg_exe, &dest).map_err(|e| format!("copy ffmpeg.exe: {e}"))?;
 
         // Clean up temp dir (best-effort).
         let _ = fs::remove_dir_all(&tmp_dir);
@@ -230,8 +223,7 @@ where
         );
         let tmp_dir = std::env::temp_dir().join(format!("rtunes-ffmpeg-{}", std::process::id()));
         let archive_path = tmp_dir.join(&archive_name);
-        fs::create_dir_all(&tmp_dir)
-            .map_err(|e| format!("create tmp dir: {e}"))?;
+        fs::create_dir_all(&tmp_dir).map_err(|e| format!("create tmp dir: {e}"))?;
 
         tracing::info!(%url, "downloading ffmpeg archive (Linux)");
         download_to_file(&url, &archive_path, &|p| on_progress(p * 0.70))?;
@@ -252,8 +244,7 @@ where
         // Find the ffmpeg binary inside the extracted tree.
         let ffmpeg_bin = find_file_recursive(&tmp_dir, "ffmpeg")
             .ok_or_else(|| "ffmpeg binary not found in extracted archive".to_string())?;
-        fs::copy(&ffmpeg_bin, &dest)
-            .map_err(|e| format!("copy ffmpeg: {e}"))?;
+        fs::copy(&ffmpeg_bin, &dest).map_err(|e| format!("copy ffmpeg: {e}"))?;
 
         // chmod +x
         #[cfg(unix)]
