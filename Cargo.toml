@@ -8,7 +8,7 @@ description = "Terminal-based music player with visualizers"
 license = "MIT"
 
 [dependencies]
-ratatui = "0.29"
+ratatui = "0.30"
 crossterm = "0.28"
 rodio = { version = "0.19", features = ["symphonia-all"] }
 rustfft = "6.2"
