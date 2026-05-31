@@ -31,7 +31,7 @@ anyhow = "1"
 ureq = { version = "2", features = ["tls"] }
 thiserror = "1"
 noise = "0.9"
-rfd = "0.15"
+rfd = "0.17"
 
 [dev-dependencies]
 serde_yaml = "0.9"
