@@ -1,12 +1,26 @@
-## What does this PR do?
-<!-- Brief description of the change. -->
+## Description
 
-## Related issue
-<!-- Link to the GitHub issue, e.g. Closes #123 -->
+<!-- What does this PR do and why? -->
+
+## Related Issue
+
+Closes #
+
+*PRs that do not link to an issue will not be merged.*
+
+## Type of Change
+
+- [ ] Bug fix
+- [ ] New feature
+- [ ] Documentation update
+- [ ] Refactor
+- [ ] Chore / maintenance
 
 ## Checklist
-- [ ] `cargo fmt --all` passes
-- [ ] `cargo clippy -- -D warnings` passes
+
+- [ ] I have run `cargo fmt`
+- [ ] `cargo clippy` passes with no warnings
 - [ ] `cargo test` passes
-- [ ] CHANGELOG.md updated (if user-facing)
-- [ ] Tested on: <!-- e.g. Windows 11, Ubuntu 24.04 -->
+- [ ] I have updated documentation if needed
+- [ ] My PR title follows conventional commit style (e.g. `feat: add visualizer config`)
+- [ ] This PR is linked to an issue above

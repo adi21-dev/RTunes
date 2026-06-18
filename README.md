@@ -1,134 +1,123 @@
+<div align="center">
+
+<!-- Add your banner/logo here -->
+
 # RTunes
 
-Terminal music player with **10 audio-reactive visualizers**, a Ratatui library UI, and optional **yt-dlp** downloads. Built in Rust; runs on Windows, macOS, and Linux.
+A beautiful terminal music player built in Rust
 
-## Install
+[![Version](https://img.shields.io/badge/version-v0.1.1-blue?style=flat-square)](https://github.com/TheCoder1232/RTunes/releases)
+[![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
+[![Built with Rust](https://img.shields.io/badge/built%20with-Rust-orange?style=flat-square&logo=rust)](https://www.rust-lang.org/)
+[![Build Status](https://img.shields.io/github/actions/workflow/status/TheCoder1232/RTunes/build.yml?style=flat-square)](https://github.com/TheCoder1232/RTunes/actions/workflows/build.yml)
+[![GitHub Issues](https://img.shields.io/github/issues/TheCoder1232/RTunes?style=flat-square)](https://github.com/TheCoder1232/RTunes/issues)
 
-### From source
+</div>
 
-**Linux** — install ALSA dev headers first:
+---
+
+## 📸 Preview
+
+> Screenshot or GIF of the visualizer goes here — replace once available.
+
+---
+
+## ✨ Features
+
+- 🎨 **Beautiful Audio Visualizer** — real-time TUI visualizer with multiple modes, the centerpiece of RTunes
+- 🎵 **Local File Playback** — play music from your local filesystem with full playback controls
+- 📥 **YouTube Music Downloads** — download tracks directly into your library using yt-dlp
+- 📚 **Library Management** — add and manage multiple library folders from within the app
+- ⌨️ **Keyboard-driven UI** — fast, distraction-free terminal controls for everything
+
+---
+
+## 🖥️ Platform Support
+
+| Platform | Architecture | Status |
+|----------|-------------|--------|
+| Linux (Arch) | x86\_64 | ✅ Supported |
+| Windows | x86\_64 | ✅ Supported |
+| Windows | aarch64 | ✅ Supported |
+| macOS | aarch64 (Apple Silicon) | ✅ Supported |
+
+---
+
+## 📦 Installation
+
+### Option 1 — Pre-built Binaries (Recommended)
+
+Download the latest binary for your platform from the [Releases](https://github.com/TheCoder1232/RTunes/releases) page.
+
+**Linux / macOS:**
+
 ```bash
-# Debian / Ubuntu
-sudo apt install libasound2-dev
-# Fedora
-sudo dnf install alsa-lib-devel
-# Arch
-sudo pacman -S alsa-lib
+chmod +x rtunes
+sudo mv rtunes /usr/local/bin/
 ```
 
+**Windows:** Download the `.exe` from releases and add it to your PATH.
+
+### Option 2 — Build from Source
+
+**Prerequisites:** Rust stable toolchain and cargo — install from [https://www.rust-lang.org/tools/install](https://www.rust-lang.org/tools/install)
+
 ```bash
-cargo install --path .
-# or
+# 1. Clone the repository
+git clone https://github.com/TheCoder1232/RTunes.git
+cd RTunes
+
+# 2. Build in release mode
 cargo build --release
-# binary: target/release/rtunes (target/release/rtunes.exe on Windows)
+
+# 3. Binary output:
+#    Linux/macOS: ./target/release/rtunes
+#    Windows:     ./target/release/rtunes.exe
+
+# 4. (Optional) Install system-wide on Linux/macOS
+sudo mv ./target/release/rtunes /usr/local/bin/
 ```
 
-### Binary releases
+---
 
-See the `dist/` output from [`scripts/package.ps1`](scripts/package.ps1) / [`scripts/package.sh`](scripts/package.sh) after `cargo build --release`.
-
-## Quick start
+## 🚀 Usage
 
 ```bash
-rtunes library add ~/Music
-rtunes tui
+rtunes
 ```
 
-Use `/` to search, **Space** to play/pause, **v** / **V** to cycle visualizers, **d** to paste a download URL.
+> Detailed keybindings and usage guide coming soon.
 
-## `deps/` folder (yt-dlp + ffmpeg)
+---
 
-RTunes auto-downloads **yt-dlp** and **ffmpeg** on first use if they aren't found. They are saved to `deps/` beside the executable and reused automatically.
+## 🗺️ Roadmap
 
-You can also install them manually:
+RTunes is early in development at v0.1.1 — there is a lot more planned.
 
-| Platform | yt-dlp | ffmpeg |
-|---|---|---|
-| **Windows** | `winget install yt-dlp.yt-dlp` | `winget install Gyan.FFmpeg` |
-| **macOS** | `brew install yt-dlp` | `brew install ffmpeg` |
-| **Linux** | `sudo apt install yt-dlp` | `sudo apt install ffmpeg` |
+- [ ] Playlist support
+- [ ] Equalizer settings
+- [ ] Last.fm scrobbling
+- [ ] Config file (~/.config/rtunes/config.toml)
+- [ ] Streaming support
 
-Or set explicit paths in `config.yaml` under `fetcher.ytdlp_path` / `fetcher.ffmpeg_path` (`"auto"` = search `deps/` then PATH).
+Have an idea? [Open a feature request →](https://github.com/TheCoder1232/RTunes/issues/new?template=feature_request.md)
 
-## Commands
+---
 
-| Command | Description |
-|--------|---------------|
-| `rtunes tui` | Full-screen TUI (default experience) |
-| `rtunes fetch <URL>` | One-shot download with progress on stderr |
-| `rtunes scan` | Scan configured library paths |
-| `rtunes library add \| remove \| list` | Manage `library_paths` in config |
+## 🤝 Contributing
 
-Global flags: `--config <path>`, `--log-level <filter>` (e.g. `info`, `debug`).
+Contributions are welcome at all skill levels — whether it is a typo fix or a brand-new feature. See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on how to get started.
 
-## Keybindings (TUI)
+---
 
-| Keys | Action |
-|------|--------|
-| **Space** | Play / pause |
-| **n** / **p** | Next / previous track |
-| **←** / **→** | Seek ±5s (Shift: ±30s) |
-| **+** / **-** | Volume |
-| **m** | Mute |
-| **s** | Shuffle |
-| **r** | Repeat cycle |
-| **↑** / **↓** / **j** / **k** | Library cursor |
-| **Enter** | Play selected |
-| **/** | Search |
-| **d** | Download URL prompt |
-| **a** | Add library folder prompt |
-| **Ctrl+L** | Library manager |
-| **v** / **V** | Cycle visualizer |
-| **1**–**9**, **0** | Jump to visualizer |
-| **t** | Cycle theme |
-| **g** | Neon (glow) toggle |
-| **Shift+M** | Spectrogram layout (when Spectrogram is active) |
-| **f** | Fullscreen layout |
-| **?** | Help overlay |
-| **Esc** | Close overlay / quit (from normal mode) |
-| **q** | Quit |
+## 📄 License
 
-## Configuration
+RTunes is licensed under the [MIT License](LICENSE).
 
-On first run, RTunes creates a YAML config under the OS standard config directory:
+© 2026 [TheCoder1232](https://github.com/TheCoder1232)
 
-| Platform | Default config path |
-|----------|--------------------|
-| Windows  | `%APPDATA%\rtunes\config.yaml` |
-| macOS    | `~/Library/Application Support/rtunes/config.yaml` |
-| Linux    | `~/.config/rtunes/config.yaml` |
+---
 
-**Portable mode**: if `config.yaml` exists next to the `rtunes` binary (e.g. in a self-contained archive), it takes priority over the OS config directory.
-
-Override entirely with **`RTUNES_CONFIG_PATH`** env var or **`rtunes --config <path>`**.
-
-Authoritative defaults and field descriptions live in **[`assets/default_config.yaml`](assets/default_config.yaml)** — copy values into your user config as needed.
-
-## Logging
-
-File logs (daily rotation) under the platform **local data** directory, e.g. Windows: `%LOCALAPPDATA%\rtunes\`. Override verbosity with `RTUNES_LOG_LEVEL` or `--log-level`.
-
-## Terminal compatibility
-
-rtunes renders Unicode block characters and ANSI colours. Recommended terminals:
-
-| Platform | Recommended |
-|----------|------------|
-| Windows  | [Windows Terminal](https://aka.ms/terminal), WezTerm, Alacritty |
-| macOS    | iTerm2, Alacritty, WezTerm |
-| Linux    | Any modern VTE/xterm terminal; Wayland compositors supported |
-
-> **Note (Windows)**: legacy `cmd.exe` / ConHost may not render visualizer block characters correctly. Windows Terminal (bundled with Windows 11) is recommended.
-
-## Development
-
-```bash
-cargo test
-cargo test --release   # stricter scan perf budget for 1000-track fixture
-```
-
-The first `cargo test` run installs a pre-commit hook via `cargo-husky` that runs `cargo fmt --check` and `cargo clippy` before every commit. No manual setup needed.
-
-## License
-
-Dual-licensed under **MIT OR Apache-2.0** (see `Cargo.toml`).
+<div align="center">
+<sub>Built with ❤️ and Rust</sub>
+</div>
