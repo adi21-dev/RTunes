@@ -18,7 +18,7 @@ crossbeam-channel = "0.5"
 clap = { version = "4", features = ["derive"] }
 serde = { version = "1", features = ["derive"] }
 serde_yaml = "0.9"
-dirs = "5"
+dirs = "6"
 shellexpand = "3"
 dunce = "1"
 url = "2"
